@@ -9,7 +9,7 @@ Menemukan format string bug bisa dilakukan lewat static analysis
 input crafted), atau kombinasi keduanya. Bab ini membahas tools dan
 teknik untuk mendeteksi bug sebelum dieksploitasi.
 
-## Pola Rentan
+## Pola Vulnerable
 
 Pola yang harus dicari:
 
@@ -120,7 +120,7 @@ ASAN akan melaporkan saat `%n` mencoba menulis ke alamat invalid.
 
 ### Dynamic Binary Instrumentation
 
-Tools seperti **PIN** atau **DynamoRIO** bisa dipakai untuk
+Tools seperti **PIN** atau **DynamoRIO** bisa digunakan untuk
 memantau pemanggilan `printf` dan mendeteksi format string yang
 mencurigakan saat runtime.
 

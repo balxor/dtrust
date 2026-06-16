@@ -4,14 +4,15 @@
 
 ## Pendahuluan
 
-Format string bug terjadi ketika program memanggil fungsi dari keluarga
-`printf` dengan format string yang bisa dikontrol user. Bug ini
-memungkinkan penyerang membaca dan menulis memory secara arbitrary.
+Format string bug terjadi saat program memanggil fungsi dari
+`printf`-family dengan format string yang bisa dikontrol user. Bug ini
+memberi penyerang akses baca dan tulis memory secara arbitrary.
 
-Bab ini membahas cara kerja internal fungsi `printf`-family, layout
-stack saat pemanggilan, dan mengapa format specifier `%n` berbahaya.
+Bab ini membahas cara kerja internal `printf`-family, layout
+stack saat pemanggilan, dan mengapa format specifier `%n` bisa
+dieksploitasi untuk menulis ke memory.
 
-## Keluarga printf
+## printf-family
 
 Fungsi yang rentan terhadap format string bug:
 
@@ -25,15 +26,15 @@ Fungsi yang rentan terhadap format string bug:
 | `syslog` | Output ke system log |
 | `err` / `warn` | Output ke stderr dengan error info |
 
-Pola rentan:
+Fungsi di atas rentan jika argumen pertama bukan string literal:
 
 ```c
-printf(user_input);          // user_input jadi format string
-fprintf(fp, user_input);     // user_input jadi format string
-syslog(LOG_ERR, user_input); // user_input jadi format string
+printf(user_input);
+fprintf(fp, user_input);
+syslog(LOG_ERR, user_input);
 ```
 
-Pola aman:
+Penanganan yang benar:
 
 ```c
 printf("%s", user_input);
@@ -51,7 +52,7 @@ int printf(const char *format, ...);
 ```
 
 Parameter `...` (ellipsis) berarti fungsi bisa menerima argumen
-tambahan dalam jumlah berapa pun. Kompiler C tidak melakukan type
+tambahan tanpa batas jumlah. Kompiler C tidak melakukan type
 checking pada argumen variadic - fungsi membaca argumen berdasarkan
 format specifier di string pertama.
 
@@ -64,7 +65,8 @@ printf("%d + %d = %d", 2, 3, 5);
 Fungsi membaca format string `"%d + %d = %d"` dan mengkonsumsi 3
 argumen integer dari stack (x86) atau register+stack (x64). Jika format
 string meminta lebih banyak argumen daripada yang diberikan, `printf`
-tetap membaca dari stack - membaca nilai apa pun yang ada di sana.
+tetap membaca dari stack - membaca data yang kebetulan ada di posisi
+berikutnya.
 
 ## Format Specifier
 
@@ -90,8 +92,8 @@ Anatomi format specifier:
 
 ### Parameter (Positional)
 
-`%7$x` mengakses argumen ke-7, bukan argumen ke-7 dari kiri. Ini
-memungkinkan akses ke posisi stack mana pun.
+`%7$x` mengakses argumen ke-7. Ini memungkinkan akses ke posisi stack
+mana saja, tidak terbatas pada argumen yang diberikan ke fungsi.
 
 ### Width
 
@@ -109,7 +111,7 @@ menulis int (4 byte di x86, 4 atau 8 di x64 tergantung ABI).
 Pada arsitektur x86 dengan calling convention cdecl:
 
 ```
-Alamat rendah
+Low address
 +------------------+
 | local variables  |  <- ESP (stack pointer)
 +------------------+
@@ -124,7 +126,7 @@ Alamat rendah
 | arg 3            |
 +------------------+
 | ...              |
-Alamat tinggi
+High address
 ```
 
 Argumen fungsi di-push ke stack dari kanan ke kiri. Saat `printf(fmt,
@@ -134,7 +136,7 @@ a, b, c)` dipanggil, stack berisi (dari atas ke bawah): `c`, `b`, `a`,
 Saat format string di-parse, `printf` membaca argumen mulai dari
 posisi setelah format string pointer. Jika format string meminta 10
 argumen tapi hanya 3 yang diberikan, 7 slot berikutnya berisi data
-apa pun yang ada di stack: local variable, saved EBP, return address,
+yang ada di stack: local variable, saved EBP, return address,
 pointer ke heap, dll.
 
 ## Stack Layout x64 (System V AMD64)
@@ -147,9 +149,9 @@ Offset ke input user berbeda dengan x86. Address dengan null byte
 (umum di x64) harus ditaruh di akhir payload karena `printf` berhenti
 di null byte.
 
-## Mengapa %n Berbahaya
+## Mengapa %n Bisa Dieksploitasi
 
-`%n` bukan membaca - ia menulis. Specifier ini menulis jumlah karakter
+`%n` menulis, bukan membaca. Specifier ini menulis jumlah karakter
 yang sudah di-print ke alamat yang ditunjuk oleh argumen terkait.
 
 ```c
@@ -172,8 +174,8 @@ karakter yang di-print dikontrol lewat width modifier.
 ### GOT (Global Offset Table)
 
 Tabel pointer di memory yang menyimpan alamat fungsi library yang
-sudah di-resolve. Saat program memanggil `printf()`, sebenarnya ia
-memanggil stub di PLT yang melompat ke GOT entry.
+sudah di-resolve. Saat program memanggil `printf()`, ia memanggil
+stub di PLT yang melompat ke GOT entry.
 
 ### PLT (Procedure Linkage Table)
 
@@ -210,6 +212,6 @@ PLT langsung melompat ke GOT entry yang sudah terisi.
   format string memberi akses baca/tulis ke memory proses
 - `%n` mengubah bug dari information leak menjadi arbitrary write
 - Layout stack dan calling convention menentukan posisi argumen
-- GOT dan PLT adalah target klasik untuk redirect execution
+- GOT dan PLT adalah target untuk redirect execution
 - Proteksi binary (ASLR, PIE, RELRO, FORTIFY) menentukan strategi
   exploit

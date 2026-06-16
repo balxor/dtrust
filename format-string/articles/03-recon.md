@@ -86,7 +86,7 @@ print(p.recvline())  # output: flag
 ### Membaca GOT Entry
 
 GOT entry berisi alamat fungsi libc yang sudah di-resolve. Membaca
-GOT entry memberikan alamat libc runtime, yang bisa dipakai untuk
+GOT entry memberikan alamat libc runtime, yang digunakan untuk
 menghitung base address libc.
 
 ```python
