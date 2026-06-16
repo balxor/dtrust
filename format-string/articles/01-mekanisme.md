@@ -113,7 +113,7 @@ Pada arsitektur x86 dengan calling convention cdecl:
 ```
 Low address
 +------------------+
-| local variables  |  <- ESP (stack pointer)
+| local variables  | <- ESP (stack pointer)
 +------------------+
 | saved EBP        |
 +------------------+
@@ -126,6 +126,7 @@ Low address
 | arg 3            |
 +------------------+
 | ...              |
++------------------+
 High address
 ```
 
