@@ -74,7 +74,8 @@ Perhatikan stack - `AAAA` akan muncul di salah satu posisi.
 ### 7. Catat offset
 Offset ini akan digunakan di level selanjutnya untuk arbitrary read/write.
 
-## Takeaways
+### 8. Ringkasan
+
 - `printf(buf)` dengan input user-controlled memungkinkan dump isi stack
 - `%N$x` memberikan akses ke argumen ke-N
 - Local variable, saved EBP, return address terbaca dari stack

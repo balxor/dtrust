@@ -93,7 +93,7 @@ $ gdb ./format2
 - Width modifier (`%96x`) mengontrol jumlah karakter yang di-print
 - Address **harus valid & writable** - kalau tidak -> SIGSEGV
 
-## Takeaways
+## Ringkasan
 - `%n` = arbitrary write primitive
 - Width modifier (`%96x`) mengontrol jumlah karakter yang di-print - menentukan nilai yang ditulis
 - Level 3: menulis nilai presisi dengan `%hn`. Level 4: overwrite GOT.

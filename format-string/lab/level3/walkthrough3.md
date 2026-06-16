@@ -130,8 +130,8 @@ Lebih presisi, payload lebih besar:
 [addr+0] [addr+1] [addr+2] [addr+3] %{byte0-16}x%{off}$hhn %{delta1}x%{off+1}$hhn ...
 ```
 
-## Takeaways
-- Menulis 32-bit address: pakai 2 × `%hn` atau 4 × `%hhn`
+## Ringkasan
+- Menulis 32-bit address: pakai 2 x `%hn` atau 4 x `%hhn`
 - Ordering: low half-word dulu, baru upper half-word
 - `%hn` -> maksimum 65535 karakter yang perlu di-print
 - Teknik ini dipakai untuk GOT overwrite di level 4

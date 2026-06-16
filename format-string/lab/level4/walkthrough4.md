@@ -151,7 +151,7 @@ $ gdb ./format4
 (gdb) x/wx 0x0804c01c
 # Setelah payload dieksekusi
 (gdb) x/wx 0x0804c01c
-0x0804c01c: 0x080491c6   ← overwritten!
+0x0804c01c: 0x080491c6   <- overwritten!
 (gdb) c
 # Sekarang masuk ke win() bukan libc exit()
 ```
@@ -164,7 +164,7 @@ make level4/format4_hard
 Coba exploit `format4_hard` yang di-compile dengan `-D_FORTIFY_SOURCE=2 -O2`.
 Apakah exploit masih bekerja? Kalau tidak, cari bypass-nya.
 
-## Takeaways
+## Ringkasan
 - GOT overwrite mengalihkan eksekusi function library ke fungsi yang dipilih
 - Partial RELRO (default): GOT writable. Full RELRO: GOT read-only, target alternatif: `.fini_array`, `__malloc_hook`
 - Contoh CVE dengan teknik ini: `sudo CVE-2012-0809`, `wu-ftpd CVE-2000-0573`

@@ -14,7 +14,7 @@ Membaca string `secret` dari memory menggunakan format specifier `%s`.
 ```
 Stack layout:
   [esp+0x00]  ...stack values...
-  [esp+0xXX]  0x0804a040  ← address secret (dari payload kita!)
+  [esp+0xXX]  0x0804a040  <- address secret (dari payload kita!)
   ...
   
 Format: [address_secret] + %{offset}$s
@@ -89,7 +89,7 @@ $ gdb ./format1
 # inspect stack untuk lihat address kita
 ```
 
-## Takeaways
+## Ringkasan
 - `%s` + address di stack = arbitrary read
 - Dapat membaca GOT entry, environment variable, credential di memory
 - Sebelum write exploit, leak dulu - leakage ini dipakai untuk menghitung libc base dan address target
