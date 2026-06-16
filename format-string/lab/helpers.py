@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Author: Kenshin Himura
 """
 Format String Exploit Helpers
 Common utility functions for all levels.

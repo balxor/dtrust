@@ -1,4 +1,5 @@
 #include <stdio.h>
+ * Author: Kenshin Himura
 #include <stdlib.h>
 #include <string.h>
 
