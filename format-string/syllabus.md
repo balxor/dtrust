@@ -348,14 +348,14 @@ err(1, input);               // RENTAN
 
 ---
 
-## REFERENSI
+## Referensi
 
 - **"Hacking: The Art of Exploitation"** - Jon Erickson (Chapter format string)
-- **"The Shellcoder's Handbook"** - Chris Anley (Format string exploitation)
+- **"The Shellcoder's Handbook"** - Chris Anley (Chapter format string exploitation)
 - **"Exploiting Format String Vulnerabilities"** - scut / team teso (2001)
-- **Protostar / Phoenix** - Exploit Education (https://exploit.education)
+- **Protostar / Phoenix** - Exploit Education: https://exploit.education
 - **pwn.college** - ASU (format string module)
-- **OWASP Format String Attack** - https://owasp.org/www-community/attacks/Format_string_attack
+- **OWASP Format String Attack**: https://owasp.org/www-community/attacks/Format_string_attack
 - **Linux man page**: `man 3 printf`, `man 1 gcc`, `man 7 feature_test_macros`
 
 ---
