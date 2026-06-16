@@ -1,4 +1,4 @@
-# ystematic Measurement of Code-Generation Safeguards in Web-Deployed Large Language Models
+# Systematic Measurement of Code-Generation Safeguards in Web-Deployed Large Language Models
 
 **Author**: Kenshin Himura
 
