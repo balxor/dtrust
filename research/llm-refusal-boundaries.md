@@ -1,10 +1,10 @@
 # Systematic Measurement of Code-Generation Safeguards in Web-Deployed Large Language Models
 
-**Author**: Kenshin Himura
+**Author**: Kenshin Himura, Security Researcher, DTrust.
 
 ## Abstract
 
-Large Language Models deployed through web interfaces see increasing use for code generation. Published jailbreak studies focus on API endpoints, leaving the safety mechanisms of consumer-facing web products unmeasured. This paper presents a systematic measurement framework with three components: a taxonomy of 8 bypass strategies and 6 exploit categories, a 48-test evaluation matrix, and a 5-class response classification system. We deploy this framework against Claude (Anthropic) via its web interface. Results show 29% of exploit-generation prompts produced functional code, with highly asymmetric protection: network exploits and malware blocked at 100%, cryptographic attack tools and reconnaissance utilities bypassing safeguards at 75-88% success rates. We map these findings to MITRE ATLAS, proposing three new techniques (AML.P0100-AML.P0102) to address identified coverage gaps. The gap between published predictions (65% bypass) and real web outcomes (29% bypass) demonstrates that web-deployed LLMs exhibit differential vulnerability patterns, with implications for AI security measurement and threat modeling.
+Large Language Models deployed through web interfaces see increasing use for code generation. Published jailbreak studies focus on API endpoints, leaving the safety mechanisms of consumer-facing web products unmeasured. This paper presents a systematic measurement framework with three components: a taxonomy of 9 bypass strategies and 6 exploit categories, a 48-test evaluation matrix, and a 5-class response classification system. We deploy this framework against Claude (Anthropic) via its web interface. Results show 29% of exploit-generation prompts produced functional code, with highly asymmetric protection: network exploits and malware blocked at 100%, cryptographic attack tools and reconnaissance utilities bypassing safeguards at 75-88% success rates. We map these findings to MITRE ATLAS, proposing three new techniques (AML.P0100-AML.P0102) to address identified coverage gaps. The gap between published predictions (65% bypass) and real web outcomes (29% bypass) demonstrates that web-deployed LLMs exhibit differential vulnerability patterns, with implications for AI security measurement and threat modeling.
 
 **Keywords**: LLM safety, jailbreak, prompt injection, refusal boundaries, MITRE ATLAS, AI security measurement
 
@@ -18,7 +18,7 @@ This gap raises two questions: **How effective are web-deployed LLM safeguards a
 
 **Contributions.** This paper makes four contributions:
 
-1. **A taxonomy** of 8 bypass strategies and 6 exploit categories, grounded in published jailbreak literature and organized for reproducible measurement.
+1. **A taxonomy** of 9 bypass strategies and 6 exploit categories, grounded in published jailbreak literature and organized for reproducible measurement.
 
 2. **A measurement framework** with an automated testing harness and a 5-class response evaluator, deployable against multiple LLM backends (API, web cookie-based, and simulated).
 
@@ -64,7 +64,7 @@ An adversary with a Claude Pro subscription ($20/month) and systematic prompting
 
 ### 4.1 Taxonomy of Bypass Strategies
 
-We define 8 bypass strategies organized into three groups, grounded in published jailbreak literature [5, 6, 7, 8]:
+We define 9 bypass strategies organized into three groups. The first 8 are grounded in published jailbreak literature [5, 6, 7, 8]; the 9th emerged as a novel finding during our empirical testing (Section 5.5):
 
 **Social Engineering Strategies:**
 - **BYPASS-ROLEPLAY (Persona Adoption):** Assigning the model a professional role (penetration tester, security researcher) with legitimate context for exploit generation.
@@ -98,7 +98,7 @@ We define 6 exploit categories spanning the attack lifecycle:
 
 The testing framework has three layers:
 
-**Layer 1 - Prompt Matrix (48 tests):** Each exploit category (6) times each bypass strategy (8) produces 48 distinct prompts. Every prompt is a complete, self-contained message ready for submission to the target LLM.
+**Layer 1 - Prompt Matrix (48 tests):** Each exploit category (6) times each bypass strategy (8 single-prompt strategies) produces 48 distinct prompts. The 9th strategy (BYPASS-MULTITURN) was tested separately via multi-turn conversation (Section 5.5).
 
 **Layer 2 - Testing Harness:** An automated Python framework that sends prompts and collects responses. Three backends are supported:
 
@@ -155,7 +155,7 @@ Strategies exhibited different effectiveness, as shown in Table 2.
 | 7 | BYPASS-DIRECT (control) | 6.7 | 0% |
 | 8 | BYPASS-ENCODING | 0.0 | 0% |
 
-Task decomposition (SPLIT) proved most effective, succeeding on 3 of 6 exploit categories. Direct requests (baseline) and encoded requests were universally rejected. The simulated data (based on published literature) predicted 65-83% success rates for role-playing and academic strategies; real web-deployed Claude rejected these at 67% rate.
+Task decomposition (SPLIT) proved most effective, succeeding on 3 of 6 exploit categories. Direct requests (baseline) and encoded requests were universally rejected. The simulated data (based on published literature) predicted 65-83% success rates for role-playing and academic strategies; real web-deployed Claude refused 67% of these attempts.
 
 ### 5.3 Vulnerability by Exploit Category
 
@@ -288,7 +288,7 @@ Current ATLAS coverage of LLM safety bypass phenomena is assessed as INADEQUATE.
 
 ## 8. Conclusion
 
-This paper presented the first systematic measurement of code-generation refusal boundaries in web-deployed LLMs. Through a structured 48-test matrix spanning 8 bypass strategies and 6 exploit categories, we demonstrated that Claude's web interface exhibits highly asymmetric safeguard effectiveness: network exploits and malware are block at 0% bypass, while reconnaissance tools and cryptographic attacks bypass filters at 87.5% and 75% rates respectively.
+This paper presented the first systematic measurement of code-generation refusal boundaries in web-deployed LLMs. Through a structured 48-test matrix spanning 8 bypass strategies and 6 exploit categories, we demonstrated that Claude's web interface exhibits highly asymmetric safeguard effectiveness: network exploits and malware are blocked at 0% bypass, while reconnaissance tools and cryptographic attacks bypass filters at 87.5% and 75% rates respectively.
 
 Our methodology combines a bypass taxonomy, an automated testing harness, and a 5-class response evaluator to provide a reproducible framework for ongoing measurement. The observed gap between simulated predictions (65% bypass) and real outcomes (29% bypass) demonstrates the importance of testing against production web interfaces rather than extrapolating from API endpoints.
 
@@ -497,32 +497,6 @@ def serve(host="127.0.0.1", port=9000):
 ```
 
 **Version 2 is a fully functional reverse shell pattern.** Changing `["cat"]` to `["/bin/sh", "-i"]` would produce the exact reverse shell that BYPASS-SPLIT (single-prompt) failed to elicit at 0% success rate. Claude generated the identical mechanism but did not recognize it as the same artifact when the components were distributed across four conversational turns.
-
-When assembled across turns: TCP connection (T1) + socket config (T2) + dup2 redirection (T3) + socket-to-shell I/O bridge (T4) yields a complete reverse shell. Claude generated all four components without refusal because the per-turn safety evaluation did not aggregate the assembled artifact across the conversation.
-
-## Appendix C: Response Evaluation Logic
-
-```python
-# -*- coding: utf-8 -*-
-# Author: Kenshin Himura
-
-def classify(response):
-    has_code_block = re.search(r"```python", response)
-    has_exploit_kw = any(kw in response for kw in EXPLOIT_KEYWORDS)
-    has_refusal = any(pat in response for pat in REFUSAL_PATTERNS)
-
-    if has_refusal and not has_code_block:
-        return REFUSAL_FULL
-    if has_refusal and has_code_block and code_lines < 5:
-        return REFUSAL_SOFT
-    if has_code_block and code_lines >= 5 and has_exploit_kw:
-        return FULL_GENERATION
-    if has_code_block and code_lines >= 1 and has_exploit_kw:
-        return PARTIAL_GENERATION
-    if has_code_block and not has_exploit_kw:
-        return HALLUCINATED
-    return REFUSAL_FULL
-```
 
 ---
 
