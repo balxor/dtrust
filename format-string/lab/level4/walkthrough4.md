@@ -78,7 +78,7 @@ done
 ```
 
 Offset yang menghasilkan exit code 139 (SIGSEGV) = offset valid. 
-Atau pakai exploit script: `python3 exploit4.py` akan auto-detect.
+Atau gunakan exploit script: `python3 exploit4.py` akan auto-detect.
 
 ### 5. Hitung payload single %n
 

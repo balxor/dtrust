@@ -131,7 +131,7 @@ Lebih presisi, payload lebih besar:
 ```
 
 ## Ringkasan
-- Menulis 32-bit address: pakai 2 x `%hn` atau 4 x `%hhn`
+- Menulis 32-bit address: gunakan 2 x `%hn` atau 4 x `%hhn`
 - Ordering: low half-word dulu, baru upper half-word
 - `%hn` -> maksimum 65535 karakter yang perlu di-print
 - Teknik ini dipakai untuk GOT overwrite di level 4

@@ -9,7 +9,7 @@ Identifikasi di mana input user muncul di stack saat diproses oleh `printf(buf)`
 Saat `printf(buf)` dipanggil dengan format string yang kita kontrol:
 - `printf` membaca argumen dari stack (x86) atau register+stack (x64)
 - Setiap `%p` atau `%x` membaca satu argument (4 bytes di x86)
-- Jika input kita berada di stack, kita bisa melihatnya di output `%p`
+- Jika input kita berada di stack, kita dapat melihatnya di output `%p`
 
 ## Step-by-Step
 
@@ -46,7 +46,7 @@ You entered: AAAA.0xff.0xbf.0xdeadbeef.0xcafebabe.0x41414141...
 
 Offset dari output: input kita muncul di posisi ke-N (hitung dari 1).
 
-> Di lab ini, `secret` (0xdeadbeef) dan `cookie` (0xcafebabe) juga muncul di stack - local variable bisa langsung terbaca.
+> Di lab ini, `secret` (0xdeadbeef) dan `cookie` (0xcafebabe) juga muncul di stack - local variable dapat langsung terbaca.
 
 ### 4. Gunakan positional argument
 Setelah tahu offset, gunakan `%N$p` untuk langsung akses:

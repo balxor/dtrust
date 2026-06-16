@@ -4,7 +4,7 @@
 
 ## Pendahuluan
 
-Menemukan format string bug bisa dilakukan lewat static analysis
+Menemukan format string bug dapat dilakukan lewat static analysis
 (memeriksa source code), dynamic analysis (menjalankan program dengan
 input crafted), atau kombinasi keduanya. Bab ini membahas tools dan
 teknik untuk mendeteksi bug sebelum dieksploitasi.
@@ -59,7 +59,7 @@ literal. Flag `-Wformat=2` lebih agresif, termasuk memeriksa
 
 Tool Static Application Security Testing:
 
-- **Semgrep**: pattern matching untuk code. Bisa menulis rule custom
+- **Semgrep**: pattern matching untuk code. Dapat menulis rule custom
   untuk mendeteksi `printf(user_input)`.
 
   ```yaml
@@ -69,7 +69,7 @@ Tool Static Application Security Testing:
       message: "Potential format string vulnerability"
   ```
 
-- **CodeQL**: query language untuk analisis code. Bisa melacak data
+- **CodeQL**: query language untuk analisis code. Dapat melacak data
   flow dari input user ke format string argument.
 
 - **Flawfinder** / **Splint**: tool lama untuk C static analysis,
@@ -120,7 +120,7 @@ ASAN akan melaporkan saat `%n` mencoba menulis ke alamat invalid.
 
 ### Dynamic Binary Instrumentation
 
-Tools seperti **PIN** atau **DynamoRIO** bisa digunakan untuk
+Tools seperti **PIN** atau **DynamoRIO** dapat digunakan untuk
 memantau pemanggilan `printf` dan mendeteksi format string yang
 mencurigakan saat runtime.
 

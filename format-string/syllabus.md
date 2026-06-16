@@ -60,14 +60,14 @@
 
 ## [2] DEBUGGING & FINDING BUGS
 
-### 2.1 Pola Rentan Format String
+### 2.1 Pola Vulnerable Format String
 ```c
-// RENTAN
+// VULNERABLE
 printf(user_input);
 fprintf(fp, user_input);
 syslog(LOG_ERR, user_input);
 
-// AMAN
+// SAFE
 printf("%s", user_input);
 fprintf(fp, "%s", user_input);
 syslog(LOG_ERR, "%s", user_input);
@@ -111,7 +111,7 @@ syslog(LOG_ERR, "%s", user_input);
 
 ### 3.2 Arbitrary Read
 - Menempatkan alamat target di payload, lalu baca via `%s`
-- Teknik konfirmasi: taruh `0x41414141` di stack, verifikasi bisa dibaca
+- Teknik konfirmasi: taruh `0x41414141` di stack, verifikasi dapat dibaca
 - Membaca GOT entry untuk leak libc base
 - Membaca environment variable, file path, credential di stack
 - Membaca `/proc/self/maps` jika accessible
@@ -287,7 +287,7 @@ err(1, input);               // RENTAN
 ```
 
 ### 7.3 Code Review Checklist
-- [ ] Semua `printf`/`fprintf`/`sprintf`/`syslog`/`err`/`warn` sudah pakai format literal
+- [ ] Semua `printf`/`fprintf`/`sprintf`/`syslog`/`err`/`warn` sudah menggunakan format literal
 - [ ] Tidak ada user-controlled format string
 - [ ] Compiler warning `-Wformat-security` clean
 - [ ] Analisis SAST tidak mendeteksi FSB

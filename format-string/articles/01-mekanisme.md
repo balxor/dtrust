@@ -9,7 +9,7 @@ Format string bug terjadi saat program memanggil fungsi dari
 memberi penyerang akses baca dan tulis memory secara arbitrary.
 
 Bab ini membahas cara kerja internal `printf`-family, layout
-stack saat pemanggilan, dan mengapa format specifier `%n` bisa
+stack saat pemanggilan, dan mengapa format specifier `%n` dapat
 dieksploitasi untuk menulis ke memory.
 
 ## printf-family
@@ -51,7 +51,7 @@ tidak tetap. Prototipe-nya:
 int printf(const char *format, ...);
 ```
 
-Parameter `...` (ellipsis) berarti fungsi bisa menerima argumen
+Parameter `...` (ellipsis) berarti fungsi dapat menerima argumen
 tambahan tanpa batas jumlah. Kompiler C tidak melakukan type
 checking pada argumen variadic - fungsi membaca argumen berdasarkan
 format specifier di string pertama.
@@ -150,7 +150,7 @@ Offset ke input user berbeda dengan x86. Address dengan null byte
 (umum di x64) harus ditaruh di akhir payload karena `printf` berhenti
 di null byte.
 
-## Mengapa %n Bisa Dieksploitasi
+## Mengapa %n Dapat Dieksploitasi
 
 `%n` menulis, bukan membaca. Specifier ini menulis jumlah karakter
 yang sudah di-print ke alamat yang ditunjuk oleh argumen terkait.

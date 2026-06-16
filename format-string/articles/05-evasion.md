@@ -122,7 +122,7 @@ Payload: `%20$08n %*482$ %*2850$ %1073741824$`
 
 #### Format String di Read-Only Memory
 
-Jika format string bisa ditempatkan di `.rodata` (bukan stack/heap),
+Jika format string dapat ditempatkan di `.rodata` (bukan stack/heap),
 FORTIFY tidak memblokir karena segment tersebut read-only dianggap
 aman oleh checker.
 

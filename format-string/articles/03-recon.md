@@ -22,7 +22,7 @@ Output: 0xffffd768.0x64.0xf7fadd80.0x56556200.0x41414141...
 ```
 
 Setiap `%p` membaca satu slot stack. Dengan mengirim `%p` berulang,
-penyerang bisa memetakan isi stack.
+penyerang dapat memetakan isi stack.
 
 ### Positional Argument
 

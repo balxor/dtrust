@@ -53,7 +53,7 @@ gcc -pie -fPIE -Wl,-z,relro,-z,now program.c
 ```
 
 - `-pie -fPIE`: binary base acak (ASLR) -> penyerang harus leak dulu
-- `-Wl,-z,relro,-z,now`: Full RELRO -> GOT read-only -> tidak bisa
+- `-Wl,-z,relro,-z,now`: Full RELRO -> GOT read-only -> tidak dapat
   GOT overwrite. Target alternatif (`.fini_array`) juga ikut read-only.
 
 ### Non-Executable Stack
@@ -62,8 +62,8 @@ gcc -pie -fPIE -Wl,-z,relro,-z,now program.c
 gcc -z noexecstack program.c
 ```
 
-Mencegah eksekusi kode di stack/heap. Shellcode tidak bisa langsung
-dijalankan, harus pakai ROP.
+Mencegah eksekusi kode di stack/heap. Shellcode tidak dapat langsung
+dijalankan, harus menggunakan ROP.
 
 ## Secure Coding
 
@@ -94,7 +94,7 @@ void safe_log(const char *msg) {
     printf("%s", msg);  // format literal
 }
 
-// Pakai di seluruh codebase
+// Gunakan di seluruh codebase
 safe_log(user_input);
 ```
 
@@ -133,12 +133,12 @@ Kernel patch yang menambahkan proteksi:
 
 ### SELinux / AppArmor
 
-Mandatory Access Control (MAC) yang membatasi apa yang bisa dilakukan
+Mandatory Access Control (MAC) yang membatasi apa yang dapat dilakukan
 proses meskipun sudah compromised:
 
-- Batasi akses filesystem (tidak bisa tulis ke `/etc`, `/usr/bin`)
-- Batasi syscall (tidak bisa `execve`, `ptrace`)
-- Batasi network (tidak bisa bind shell)
+- Batasi akses filesystem (tidak dapat tulis ke `/etc`, `/usr/bin`)
+- Batasi syscall (tidak dapat `execve`, `ptrace`)
+- Batasi network (tidak dapat bind shell)
 
 ### seccomp-bpf
 
@@ -153,7 +153,7 @@ seccomp_load(ctx);
 ```
 
 Dengan filter ini, meskipun format string exploit berhasil mendapatkan
-code execution, `execve()` diblokir -> tidak bisa spawn shell.
+code execution, `execve()` diblokir -> tidak dapat spawn shell.
 
 ### System-Wide ASLR
 
@@ -178,7 +178,7 @@ Nilai 2 = full randomization (binary, stack, heap, libc, vdso).
 
 ## Ringkasan
 
-- Developer: selalu pakai format string literal, jangan pernah
+- Developer: selalu gunakan format string literal, jangan pernah
   `printf(input_user)`
 - Compiler: `-Wformat-security -Werror -D_FORTIFY_SOURCE=2 -pie -fPIE
   -Wl,-z,relro,-z,now -fstack-protector-strong`
