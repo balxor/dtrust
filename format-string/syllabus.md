@@ -154,7 +154,7 @@ syslog(LOG_ERR, "%s", user_input);
 - Perhitungan: `bytes_to_print = target_value - bytes_already_printed`
 
 ### 4.4 Teknik Double-Write (`%hn` / `%hhn`)
-- Untuk address 32-bit, dibutuhkan 2 × `%hn` atau 4 × `%hhn`
+- Untuk address 32-bit, dibutuhkan 2 �- `%hn` atau 4 �- `%hhn`
 - **Address splitting**:
   ```
   payload = p32(target_addr)     + p32(target_addr+2)
@@ -162,7 +162,7 @@ syslog(LOG_ERR, "%s", user_input);
   ```
 - **Short write calculation**: lower 2 byte dulu, lalu upper 2 byte
 - Jika upper < lower: manfaatkan integer overflow width modifier
-- **4-byte full overwrite** via 4 × `%hhn` (paling presisi)
+- **4-byte full overwrite** via 4 �- `%hhn` (paling presisi)
 
 ### 4.5 Target Overwrite
 #### 4.5.1 GOT Overwrite (klasik)
@@ -216,9 +216,10 @@ syslog(LOG_ERR, "%s", user_input);
 - Timing-based: add `%10000000x` untuk delay / bruteforce timing
 
 ### 5.3 Bypass FORTIFY_SOURCE
-- `FORTIFY_SOURCE=1`: mendeteksi `%n` di writable memory -> abort
-- `FORTIFY_SOURCE=2`: strict check, tambahan batasan `%n` di `%s`
-- **Bypass**: jangan gunakan `%n` di format string writable; taruh address di stack (stack variable / format string on heap)
+- `FORTIFY_SOURCE=1`: menambahkan check `%n` di format string literal -> abort saat compile time atau runtime
+- `FORTIFY_SOURCE=2`: check lebih ketat, termasuk `%s` overflow detection
+- Pada glibc modern: FORTIFY tidak memblokir `%n` di format string dinamis (stack/heap), hanya di string literal. Exploit single `%n` tetap bekerja tanpa modifikasi (terverifikasi di `format4_hard`).
+- **Bypass untuk glibc lama (2.14.x)**: overflow `nargs` counter (CVE-2012-0864) - lihat `cve/cve-2012-0809`
 
 ### 5.4 Anti-Debug & Anti-Analisis
 - Deteksi ptrace via `prctl(PR_SET_DUMPABLE)` atau signal handler
@@ -300,19 +301,19 @@ err(1, input);               // RENTAN
 
 ## [8] STUDI KASUS REAL CVEs
 
-| CVE | Software | Dampak | Kesulitan |
-|-----|----------|--------|-----------|
-| CVE-2000-0573 | wu-ftpd 2.6.0 | Remote root via `SITE EXEC` | ★★★☆ |
-| CVE-2012-0809 | sudo < 1.8.4 | Local root via error logging | ★★☆☆ |
-| CVE-2017-15228 | irssi < 1.0.5 | Client-side RCE via server message | ★★★☆ |
-| CVE-2020-14364 | QEMU 5.1 | VM escape via USB emulation | ★★★★ |
-| CVE-2020-1712 | systemd-journald | Local root | ★★★☆ |
+| CVE | Software | Dampak | Kesulitan | Doc |
+|-----|----------|--------|-----------|:---:|
+| CVE-2000-0573 | wu-ftpd 2.6.0 | Remote root via `SITE EXEC` | ★★★☆ | ✓ |
+| CVE-2012-0809 | sudo < 1.8.4 | Local root via error logging | ★★☆☆ | ✓ |
+| CVE-2017-15228 | irssi < 1.0.5 | Client-side RCE via server | ★★★☆ | ✓ |
+| CVE-2020-14364 | QEMU 5.1 | VM escape via USB emulation | ★★★★ | ✓ |
+| CVE-2020-1712 | systemd-journald | Local root | ★★★☆ | ✓ |
 
 ### Walkthrough per CVE (tersedia di folder `cve/`)
-1. Environment setup (Dockerfile)
+1. Environment setup (Dockerfile untuk CVE-2012-0809 dan CVE-2000-0573)
 2. Root cause analysis
-3. Exploit step-by-step
-4. Mitigation bypass analysis (FORTIFY_SOURCE bypass untuk CVE-2012-0809)
+3. Exploit technique breakdown
+4. Referensi dan advisory terkait
 
 ---
 

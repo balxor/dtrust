@@ -144,11 +144,33 @@ $ python3 exploit4.py
 
 ### 8. Debug dengan GDB
 ```bash
+$ gdb ./format4
+(gdb) b *exit@plt
+(gdb) r
+# Sebelum exploit: exit@got -> libc exit
+(gdb) x/wx 0x0804bfe8
+# Setelah payload dieksekusi
+(gdb) x/wx 0x0804bfe8
+0x0804bfe8: 0x080491d6   <- overwritten!
+(gdb) c
+# Sekarang masuk ke win() bukan libc exit()
+```
+
+### 9. FORTIFY_SOURCE challenge
+
+```bash
 make level4/format4_hard
 ```
 
-Coba exploit `format4_hard` yang di-compile dengan `-D_FORTIFY_SOURCE=2 -O2`.
-Apakah exploit masih bekerja? Kalau tidak, cari bypass-nya.
+`format4_hard` di-compile dengan `-D_FORTIFY_SOURCE=2 -O2`. Hasil pengujian:
+
+- **Single `%n`**: diblokir. Output: `*** %n in writable segments detected ***` -> SIGABRT
+- **Double `%hn`**: diblokir. FORTIFY juga mendeteksi `%hn` sebagai varian `%n`
+
+FORTIFY_SOURCE=2 pada glibc modern (>= 2.15) efektif memblokir format string
+exploit yang mengandalkan `%n` family di format string dinamis. Bypass
+memerlukan teknik spesifik seperti nargs overflow (CVE-2012-0864) yang
+hanya bekerja di glibc 2.14.x.
 
 ## Ringkasan
 - GOT overwrite mengalihkan eksekusi function library ke fungsi yang dipilih

@@ -1,0 +1,11 @@
+# Core dumps from exploit testing
+core.*
+
+# Compiled binaries
+*.exe
+lab/level0/format0
+lab/level1/format1
+lab/level2/format2
+lab/level3/format3
+lab/level4/format4
+lab/level4/format4_hard
