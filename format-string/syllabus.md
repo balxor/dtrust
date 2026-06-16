@@ -207,17 +207,17 @@ syslog(LOG_ERR, "%s", user_input);
 - Encoding address bytes (XOR, ROT-13) - jarang berguna karena null-byte problem
 - Pad payload dengan `\x90` atau random bytes
 - Gunakan `%*x$` (dynamic width) untuk generate output non-deterministik
-- Split character output: `%c%c%c%c` alih-alih `%4c`
+- Split character output: `%c%c%c%c` dibanding `%4c`
 
 ### 5.2 Evasion Terhadap Filter/Firewall
 - Payload di query string, header HTTP, data POST
-- URI encoding address bytes: `%41` alih-alih `\x41`
+- URI encoding address bytes: `%41` sebagai pengganti `\x41`
 - Multi-stage: leak dulu, write kemudian (pisahkan interaksi)
 - Timing-based: add `%10000000x` untuk delay / bruteforce timing
 
 ### 5.3 Bypass FORTIFY_SOURCE
 - `FORTIFY_SOURCE=1`: menambahkan check `%n` di format string literal -> abort saat compile time atau runtime
-- `FORTIFY_SOURCE=2`: check lebih ketat, termasuk `%s` overflow detection
+- `FORTIFY_SOURCE=2`: check lebih lanjut, termasuk `%s` overflow detection
 - Pada glibc modern: FORTIFY tidak memblokir `%n` di format string dinamis (stack/heap), hanya di string literal. Exploit single `%n` tetap bekerja tanpa modifikasi (terverifikasi di `format4_hard`).
 - **Bypass untuk glibc lama (2.14.x)**: overflow `nargs` counter (CVE-2012-0864) - lihat `cve/cve-2012-0809`
 
