@@ -4,7 +4,7 @@
 **Target audience**: Pentester, Security Researcher, Red Teamer  
 **Level**: Intermediate -> Advanced  
 **Durasi**: 5-8 hari (intensif) atau 2-3 minggu (modular)  
-**Lab utama**: Protostar-style custom lab (format0–format4) + real-world CVE  
+**Lab utama**: Protostar-style custom lab (format0-format4) + real-world CVE  
 
 ---
 
@@ -308,11 +308,11 @@ err(1, input);               // RENTAN
 | CVE-2020-14364 | QEMU 5.1 | VM escape via USB emulation | ★★★★ |
 | CVE-2020-1712 | systemd-journald | Local root | ★★★☆ |
 
-### Walkthrough per CVE (akan disediakan di folder `cve/`)
-1. Environment setup
-2. Root cause analysis (patch diff)
-3. Exploit development step-by-step
-4. Mitigation bypass analysis
+### Walkthrough per CVE (tersedia di folder `cve/`)
+1. Environment setup (Dockerfile)
+2. Root cause analysis
+3. Exploit step-by-step
+4. Mitigation bypass analysis (FORTIFY_SOURCE bypass untuk CVE-2012-0809)
 
 ---
 
@@ -360,34 +360,11 @@ err(1, input);               // RENTAN
 
 ---
 
-## STRUKTUR DIREKTORI PROYEK
-
-```
-FORMAT STRING/
-├── syllabus.md                  ← file ini
-├── lab/
-│   ├── Makefile                 ← build semua level
-│   ├── level0/                  ← basic stack leak
-│   │   ├── format0.c
-│   │   ├── exploit0.py
-│   │   └── walkthrough0.md
-│   ├── level1/                  ← arbitrary read
-│   │   ├── format1.c
-│   │   ├── exploit1.py
-│   │   └── walkthrough1.md
-│   ├── level2/                  ← basic write (%n)
-│   │   ├── format2.c
-│   │   ├── exploit2.py
-│   │   └── walkthrough2.md
-│   ├── level3/                  ← double-write (%hn)
-│   │   ├── format3.c
-│   │   ├── exploit3.py
-│   │   └── walkthrough3.md
-│   └── level4/                  ← full chain: GOT overwrite
-│       ├── format4.c
-│       ├── exploit4.py
-│       └── walkthrough4.md
-└── cve/                         ← studi kasus real CVE (coming soon)
-    ├── cve-2012-0809/
-    └── cve-2000-0573/
-```
+> "The quieter you become, the more you are able to hear."
+> 
+> "We break things not to destroy, but to understand how they hold together."
+> 
+> "Format strings don't leak data -- careless programmers leak data. The
+> stack remembers everything you forgot to protect."
+> 
+> `Kenshin Himura`
