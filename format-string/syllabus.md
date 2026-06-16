@@ -4,7 +4,8 @@
 **Target audience**: Pentester, Security Researcher, Red Teamer  
 **Level**: Intermediate -> Advanced  
 **Durasi**: 5-8 hari (intensif) atau 2-3 minggu (modular)  
-**Lab**: Protostar-style custom lab (format0-format4) + real-world CVE  
+**Lab**: Protostar-style custom lab (format0-format4) + real-world CVE
+**Artikel**: `articles/01-mekanisme.md` s/d `articles/07-mitigasi.md`  
 
 ---
 
