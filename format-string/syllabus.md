@@ -366,5 +366,3 @@ err(1, input);               // RENTAN
 > 
 > "Format strings don't leak data -- careless programmers leak data. The
 > stack remembers everything you forgot to protect."
-> 
-> `Kenshin Himura`
