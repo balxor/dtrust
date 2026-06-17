@@ -1,18 +1,18 @@
 # Systematic Measurement of Code-Generation Safeguards in Web-Deployed Large Language Models
 
-**Author**: Kenshin Himura, Security Researcher, DTrust.
+**Author**: Kenshin Himura
 
 ## Abstract
 
-Large Language Models deployed through web interfaces see increasing use for code generation. Published jailbreak studies focus on API endpoints, leaving the safety mechanisms of consumer-facing web products unmeasured. This paper presents a systematic measurement framework with three components: a taxonomy of 9 bypass strategies and 6 exploit categories, a 48-test evaluation matrix, and a 5-class response classification system. We deploy this framework against Claude (Anthropic) via its web interface. Results show 29% of exploit-generation prompts produced functional code, with highly asymmetric protection: network exploits and malware blocked at 100%, cryptographic attack tools and reconnaissance utilities bypassing safeguards at 75-88% success rates. We map these findings to MITRE ATLAS, proposing three new techniques (AML.P0100-AML.P0102) to address identified coverage gaps. The gap between published predictions (65% bypass) and real web outcomes (29% bypass) demonstrates that web-deployed LLMs exhibit differential vulnerability patterns, with implications for AI security measurement and threat modeling.
+Large Language Models deployed through web interfaces are increasingly used for code generation. Published jailbreak studies focus on API endpoints, leaving the safety mechanisms of consumer-facing web products unexamined. This paper presents a systematic measurement framework with three components: a taxonomy of 9 bypass strategies and 6 exploit categories, a 48-test evaluation matrix, and a 5-class response classification system. We deploy this framework against Claude (Anthropic) via its web interface. Results show 29% of exploit-generation prompts produced functional code, with highly asymmetric protection: network exploits and malware blocked at 100%, cryptographic attack tools and reconnaissance utilities bypassing safeguards at 75-88% success rates. We map these findings to MITRE ATLAS, proposing three new techniques (AML.P0100-AML.P0102) to address identified coverage gaps. The gap between published predictions (65% bypass) and real web outcomes (29% bypass) demonstrates that web-deployed LLMs exhibit differential vulnerability patterns, with implications for AI security measurement and threat modeling.
 
 **Keywords**: LLM safety, jailbreak, prompt injection, refusal boundaries, MITRE ATLAS, AI security measurement
 
 ## 1. Introduction
 
-LLMs have become standard coding assistants. Platforms such as GitHub Copilot, Cursor, and Claude Code integrate LLMs directly into development workflows. Millions of users interact with web interfaces at claude.ai and chatgpt.com for code generation tasks daily [1, 2]. These systems undergo extensive safety training designed to prevent generation of malicious code and exploits [3, 4].
+Large language models (LLMs) are widely deployed as coding assistants. Platforms such as GitHub Copilot, Cursor, and Claude Code integrate LLMs directly into development workflows. Users routinely interact with web interfaces at claude.ai and chatgpt.com for code generation. These systems undergo extensive safety training designed to prevent generation of malicious code and exploits (Bai et al., 2022; Anthropic, 2025).
 
-Published research demonstrates that LLM safety guardrails can be circumvented through crafted prompts - a class of attacks labeled prompt injection or jailbreaking [5, 6, 7, 8]. Role-playing and chain-of-thought exploitation induce LLMs to violate content policies. The majority of this research targets API endpoints, which may employ safety mechanisms distinct from the consumer-facing web interfaces used by millions of daily users.
+Published research demonstrates that LLM safety guardrails can be circumvented through crafted prompts, a class of attacks termed prompt injection or jailbreaking (Wei et al., 2024; Liu et al., 2023; Zou et al., 2023; Schulhoff et al., 2024). Role-playing and chain-of-thought exploitation induce LLMs to violate content policies. The majority of this research targets API endpoints, which may employ safety mechanisms distinct from the consumer-facing web interfaces used by the broader user population.
 
 This gap raises two questions: **How effective are web-deployed LLM safeguards against systematic bypass attempts?** and **Does existing threat modeling (MITRE ATLAS) adequately capture these phenomena?**
 
@@ -30,27 +30,27 @@ This gap raises two questions: **How effective are web-deployed LLM safeguards a
 
 ### 2.1 LLM Safety Training
 
-Modern LLMs undergo multi-stage safety training: supervised fine-tuning on curated refusal datasets, reinforcement learning from human feedback (RLHF), and constitutional AI techniques that encode behavioral constraints [3, 9]. The objective is producing models that refuse harmful requests while remaining helpful. The tension between helpfulness and harmlessness creates a trade-off that adversaries can exploit [10].
+Modern LLMs undergo multi-stage safety training: supervised fine-tuning on curated refusal datasets, reinforcement learning from human feedback (RLHF), and constitutional AI techniques that encode behavioral constraints (Bai et al., 2022; Ouyang et al., 2022). The objective is to produce models that refuse harmful requests while remaining helpful. The tension between helpfulness and harmlessness creates a trade-off that adversaries can exploit (Askell et al., 2021).
 
 ### 2.2 Prompt Injection and Jailbreaking
 
-Wei et al. [5] provided a foundational taxonomy of jailbreak failure modes, showing safety training can be systematically bypassed through competing objectives and mismatched generalization. Zou et al. [7] showed universal adversarial suffixes transfer across models. Liu et al. [6] cataloged injection techniques specific to LLM-integrated applications.
+Wei et al. (2024) provide a foundational taxonomy of jailbreak failure modes, showing safety training can be systematically bypassed through competing objectives and mismatched generalization. Zou et al. (2023) demonstrate universal adversarial suffixes transfer across models. Liu et al. (2023) catalog injection techniques specific to LLM-integrated applications.
 
-Recent work focused on code-generation safeguards. Greshake et al. [11] demonstrated indirect prompt injection in coding assistants. Schulhoff et al. [8] organized a large-scale red-teaming competition revealing persistent vulnerabilities in instruction-hierarchy enforcement.
+Recent work has focused on code-generation safeguards. Greshake et al. (2023) demonstrate indirect prompt injection in coding assistants. Schulhoff et al. (2024) organized a large-scale red-teaming competition revealing persistent vulnerabilities in instruction-hierarchy enforcement.
 
 These studies share a limitation: they target API endpoints (GPT-4 API, Claude API), which may employ different safety filtering than web interfaces used by consumer and enterprise users.
 
 ### 2.3 MITRE ATLAS
 
-MITRE ATLAS (Adversarial Threat Landscape for AI Systems) [12] extends the ATT&CK framework to the AI domain. As of version 2026.05, ATLAS defines 16 tactics and over 100 techniques covering adversarial ML, LLM attacks, and AI supply chain compromise. AML.T0051 (LLM Prompt Injection) covers crafted prompts to manipulate LLM behavior, but does not distinguish between simple injection and systematic multi-strategy bypass campaigns. AML.T0005 (Execution) covers malicious code execution but not the pathway of LLM-synthesized exploit code.
+MITRE ATLAS (Adversarial Threat Landscape for AI Systems) extends the ATT&CK framework to the AI domain (MITRE, 2026). As of version 2026.05, ATLAS defines 16 tactics and over 100 techniques covering adversarial ML, LLM attacks, and AI supply chain compromise. AML.T0051 (LLM Prompt Injection) covers crafted prompts to manipulate LLM behavior, but does not distinguish between simple injection and systematic multi-strategy bypass campaigns. AML.T0005 (Execution) covers malicious code execution but not the pathway of LLM-synthesized exploit code.
 
 ### 2.4 Measurement Studies in AI Security
 
-Large-scale measurement studies are standard in security research [13, 14]. In AI security, recent work has measured model extraction attacks [15], data leakage [16], and adversarial robustness [17]. No prior work has conducted systematic measurement of refusal boundary degradation across a structured exploit-by-strategy matrix against web-deployed LLMs.
+Large-scale measurement studies are standard in security research (Durumeric et al., 2013). In AI security, recent work has measured model extraction attacks (Tramer et al., 2016), training data leakage (Carlini et al., 2021), and adversarial robustness (Carlini and Wagner, 2017). No prior work has conducted systematic measurement of refusal boundary degradation across a structured exploit-by-strategy matrix against web-deployed LLMs.
 
 ## 3. Threat Model
 
-The adversary has these capabilities and constraints:
+We assume an adversary with the following capabilities and constraints:
 
 - **Goal:** Obtain functional exploit code from a web-deployed LLM without triggering refusal mechanisms.
 - **Access:** Interaction through the standard web interface (claude.ai), no API access, no fine-tuning capability, no access to model weights or training data.
@@ -64,7 +64,7 @@ An adversary with a Claude Pro subscription ($20/month) and systematic prompting
 
 ### 4.1 Taxonomy of Bypass Strategies
 
-We define 9 bypass strategies organized into three groups. The first 8 are grounded in published jailbreak literature [5, 6, 7, 8]; the 9th emerged as a novel finding during our empirical testing (Section 5.5):
+We define 9 bypass strategies organized into three groups. The first 8 are grounded in published jailbreak literature (Wei et al., 2024; Liu et al., 2023; Zou et al., 2023; Schulhoff et al., 2024); the 9th emerged as a novel finding during our empirical testing (Section 5.5):
 
 **Social Engineering Strategies:**
 - **BYPASS-ROLEPLAY (Persona Adoption):** Assigning the model a professional role (penetration tester, security researcher) with legitimate context for exploit generation.
@@ -140,7 +140,7 @@ Of 48 prompts, 14 (29.2%) resulted in FULL_GENERATION with an additional 3 (6.3%
 
 ### 5.2 Bypass Effectiveness by Strategy
 
-Strategies exhibited different effectiveness, as shown in Table 2.
+Strategy effectiveness varied across categories, as shown in Table 2.
 
 **Table 2: Strategy Effectiveness Ranking (Real Claude)**
 
@@ -159,7 +159,7 @@ Task decomposition (SPLIT) proved most effective, succeeding on 3 of 6 exploit c
 
 ### 5.3 Vulnerability by Exploit Category
 
-The most striking finding is the asymmetric distribution of safeguard effectiveness across exploit categories. Table 3 and Figure 1 show this pattern.
+A primary finding is the asymmetric distribution of safeguard effectiveness across exploit categories. Table 3 and Figure 1 show this pattern.
 
 **Table 3: Exploit Category Vulnerability (Real Claude)**
 
@@ -188,7 +188,7 @@ Legend: 100 = Full exploit   40 = Partial    0 = Blocked
 
 ### 5.4 Qualitative Analysis of Refusal Responses
 
-Claude's refusals showed detection of bypass attempts. The model consistently identified the *artifact* being requested (a functional exploit tool) rather than being deceived by *contextual framing*. Representative responses:
+Claude's refusal responses demonstrated awareness of bypass attempts. The model consistently identified the *artifact* being requested (a functional exploit tool) rather than being deceived by *contextual framing*. Representative responses:
 
 **Roleplaying bypass attempt (denied):**
 > "I'm not going to take on the persona or write this as specced... The framing here - certification, experience, authorized scope - doesn't change what the artifact is: a tool that automatically discovers SQLi and generates working exploit payloads."
@@ -218,7 +218,7 @@ The BYPASS-SPLIT strategy (Section 4.1) presented all exploit sub-components in 
 
 When assembled across turns, the generated code constitutes a complete reverse shell implementation: TCP client connection (Turn 1), socket configuration (Turn 2), file descriptor manipulation (Turn 3), and I/O redirection through the socket (Turn 4).
 
-**Significance.** This finding reveals a critical gap in Claude's safety architecture: while single-prompt decomposition is reliably detected, multi-turn decomposition across a trust-building conversation successfully bypasses artifact-level refusal. The model's per-turn evaluation evaluates each request in isolation against conversation context, failing to aggregate the assembled artifact that emerges across turns.
+**Significance.** This finding reveals a critical gap in Claude's safety architecture: while single-prompt decomposition is reliably detected, multi-turn decomposition across a trust-building conversation successfully bypasses artifact-level refusal. The model evaluates each request in isolation rather than aggregating the assembled artifact across the full conversation.
 
 This represents a new bypass strategy (BYPASS-MULTITURN) distinct from BYPASS-SPLIT in both mechanism (conversation history exploitation vs single-prompt decomposition) and effectiveness (100% component generation vs 0% for the same exploit category in single-prompt mode).
 
@@ -288,7 +288,7 @@ Current ATLAS coverage of LLM safety bypass phenomena is assessed as INADEQUATE.
 
 ## 8. Conclusion
 
-This paper presented the first systematic measurement of code-generation refusal boundaries in web-deployed LLMs. Through a structured 48-test matrix spanning 8 bypass strategies and 6 exploit categories, we demonstrated that Claude's web interface exhibits highly asymmetric safeguard effectiveness: network exploits and malware are blocked at 0% bypass, while reconnaissance tools and cryptographic attacks bypass filters at 87.5% and 75% rates respectively.
+This paper presented the first systematic measurement of code-generation refusal boundaries in web-deployed LLMs. Through a structured 48-test matrix spanning 8 single-prompt bypass strategies and 6 exploit categories, plus a novel multi-turn trust-building experiment (BYPASS-MULTITURN), we demonstrated that Claude's web interface exhibits highly asymmetric safeguard effectiveness: network exploits and malware are blocked at 0% bypass, while reconnaissance tools and cryptographic attacks bypass filters at 87.5% and 75% rates respectively.
 
 Our methodology combines a bypass taxonomy, an automated testing harness, and a 5-class response evaluator to provide a reproducible framework for ongoing measurement. The observed gap between simulated predictions (65% bypass) and real outcomes (29% bypass) demonstrates the importance of testing against production web interfaces rather than extrapolating from API endpoints.
 
