@@ -2,7 +2,7 @@
 
 **`HillstoneSecureConnectService.exe` `_popen()` Analysis**
 
-*June 2026*
+*June 2026 - Kenshin Himura of DTrust*
 
 ---
 
@@ -23,7 +23,7 @@
    - 4.6 [Upstream Callers: Network Event to Command Execution](#46-upstream-callers-network-event-to-command-execution)
 5. [Injection Surface Mapping](#5-injection-surface-mapping)
    - 5.1 [`netsh` Command Construction](#51-netsh-command-construction)
-   - 5.2 [Data Flow: VPN Gateway → `%s` → `cmd.exe`](#52-data-flow-vpn-gateway--s--cmdexe)
+   - 5.2 [Data Flow: VPN Gateway -> `%s` -> `cmd.exe`](#52-data-flow-vpn-gateway--s--cmdexe)
    - 5.3 [Registry-Sourced Parameters (Local Attack Surface)](#53-registry-sourced-parameters-local-attack-surface)
    - 5.4 [`system()` Red Herring](#54-system-red-herring)
 6. [Exploitation](#6-exploitation)
@@ -178,7 +178,7 @@ These reference `clear_browser_cache.vbs`, which the service distributes in its 
 
 This function is the sole wrapper around `_popen`/`_pclose`. It takes a command string (via `EDI`) and a mode constant (pushed as immediate `0x006E11BC`). The function prologue uses `__CxxFrameHandler4`-based SEH with a catch block at RVA `0x0069B336`.
 
-Pseudo-code reconstruction:
+Reconstruction:
 
 ```c
 FILE* hillstone_popen_exec(const char* command) {
@@ -299,11 +299,11 @@ Tracing forward from the format-string functions:
 
 > `0x0006EFE0` (DNSv6 add) calls these bridge functions:
 >
-> → `0x00071923`, `0x00071E40`, `0x000722F0`, `0x000723D0`, `0x000724B0`, `0x00072550`, `0x000728B0`, `0x000728DB`, `0x00072F36`
+> -> `0x00071923`, `0x00071E40`, `0x000722F0`, `0x000723D0`, `0x000724B0`, `0x00072550`, `0x000728B0`, `0x000728DB`, `0x00072F36`
 
 Each bridge function in turn calls one or more `_popen` callers. The pattern repeats for `0x00070B70` (DNSv4 add), which calls the same bridge set plus additional functions:
 
-> → `0x00072420`, `0x000743F0`, `0x00074680`, `0x00074980`, `0x00076960`
+> -> `0x00072420`, `0x000743F0`, `0x00074680`, `0x00074980`, `0x00076960`
 
 The function `0x00076960` bridges to `_popen` caller `0x00079660` and is significant because `0x00079660` has three distinct upstream callers (`0x00076960`, `0x00078B80`, `0x00081590`), indicating it serves as a shared execution path for multiple configuration operations.
 
@@ -349,10 +349,10 @@ bridge function (e.g. 0x00072420)
 format-string function (e.g. 0x00070B70)
     │
     ▼
-CMD_BUILDER (0x00297065) → sprintf(format, DNS_IP, adapter_name)
+CMD_BUILDER (0x00297065) -> sprintf(format, DNS_IP, adapter_name)
     │
     ▼
-_popen wrapper (0x0006AE90) → _popen(command, "r")
+_popen wrapper (0x0006AE90) -> _popen(command, "r")
     │
     ▼
 cmd.exe /c "netsh interface ip add dns \"adapter\" 8.8.8.8 & payload"
@@ -406,7 +406,7 @@ The `cmd.exe /c` parser honors these metacharacters:
 
 A `%s` value containing any of these characters breaks out of the `netsh` command and injects into the shell context.
 
-### 5.2 Data Flow: VPN Gateway → `%s` → `cmd.exe`
+### 5.2 Data Flow: VPN Gateway -> `%s` -> `cmd.exe`
 
 ```
 [VPN Gateway]
@@ -501,7 +501,7 @@ With decryption capability, the attacker modifies the DNS server IP field in the
 The service IPC channel (`TCP 127.0.0.1:35421`) is accessible from any local process. The framing protocol uses length-prefixed JSON messages. While the full message type enumeration was not completed during static analysis, the service processes messages through the class hierarchy:
 
 ```
-VCLMsgJsonParse → sslvpn::ProcessNetEvent → DNS configuration
+VCLMsgJsonParse -> sslvpn::ProcessNetEvent -> DNS configuration
 ```
 
 A local attacker who can craft a valid IPC message that triggers DNS reconfiguration with attacker-supplied DNS server addresses achieves SYSTEM code execution from an unprivileged user context.
@@ -535,6 +535,7 @@ The PoC below demonstrates the injection primitive. It emulates a compromised VP
 #!/usr/bin/env python3
 """
 hillstone_popen_exploit.py
+Kenshin Himura - DTrust
 PoC: Inject commands via DNS server IP into Hillstone Secure Connect.
 Requires: valid TLS cert for the gateway hostname OR patched client.
 """
@@ -639,6 +640,7 @@ For the local privilege escalation path through IPC port `35421`:
 #!/usr/bin/env python3
 """
 hillstone_ipc_exploit.py
+Kenshin Himura - DTrust
 Local privilege escalation via IPC message spoofing.
 Requires: Hillstone service running, reverse-engineered message format.
 Status: framing format needs completion via live traffic capture.
