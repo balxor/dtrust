@@ -39,11 +39,11 @@ echo
 echo "[+] Setup complete!"
 echo
 echo "Lab binaries compiled:"
-echo "  ./level0/format0 - Stack Leak"
-echo "  ./level1/format1 - Arbitrary Read"
-echo "  ./level2/format2 - Basic Write (%n)"
-echo "  ./level3/format3 - Precise Write (%hn)"
-echo "  ./level4/format4 - Full Chain (GOT Overwrite)"
+echo "  level0/format0  - Stack Leak"
+echo "  level1/format1  - Arbitrary Read"
+echo "  level2/format2  - Basic Write (%n)"
+echo "  level3/format3  - Precise Write (%hn)"
+echo "  level4/format4  - Full Chain (GOT Overwrite)"
 echo
 echo "Run exploits:"
 echo "  python3 level0/exploit0.py"
@@ -52,8 +52,5 @@ echo "  python3 level2/exploit2.py"
 echo "  python3 level3/exploit3.py"
 echo "  python3 level4/exploit4.py"
 echo
-echo "Check protections:"
-echo "  python3 helpers.py ./level4/format4"
-echo
 echo "Manual testing:"
-echo "  echo 'AAAA%p.%p.%p.%p.%p.%p.%p' | ./level0/format0"
+echo "  echo 'AAAA%p.%p.%p.%p.%p.%p.%p' | level0/format0"
