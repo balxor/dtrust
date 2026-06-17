@@ -50,7 +50,7 @@ The binary is a 32-bit MSVC++ Qt 5.15.2 application. It links against a forked O
 | Property       | Value                                                      |
 |----------------|------------------------------------------------------------|
 | Product        | Hillstone Secure Connect                                   |
-| Version        | 5.5.1.11637 (service reports 5.0.1.10532)                 |
+| Version        | 5.5.1.11637 (from `InstallUI.dll`) / 5.0.1.10532 (from service startup log) |
 | Vendor         | Hillstone Networks Co., Ltd (2006–2024)                    |
 | Architecture   | x86 PE32, Qt 5.15.2 GUI + native C++ Windows service       |
 | Runtime        | MSVC 2015–2022 v14.32.31332                                |
@@ -65,12 +65,12 @@ C:\Program Files (x86)\Hillstone\Hillstone Secure Connect\
 
 Key binaries:
 
-| File                               | Role                              |
-|------------------------------------|-----------------------------------|
-| `HillstoneSecureConnect.exe`       | Qt GUI client                     |
-| `HillstoneSecureConnectService.exe` | SYSTEM background service (target) |
-| `HillstoneSecureConnectServiceD.exe` | Service helper daemon            |
-| `uninstall.exe`                    | Qt uninstaller                    |
+| Key Binaries | Role                                 |
+|-------------|--------------------------------------|
+| `HillstoneSecureConnect.exe`         | Qt GUI client                      |
+| `HillstoneSecureConnectService.exe`  | Windows service, runs as SYSTEM (target) |
+| `HillstoneSecureConnectServiceD.exe` | Daemon/helper process              |
+| `uninstall.exe`                      | Qt uninstaller                     |
 
 The service handles VPN tunnel lifecycle: adapter creation, IP/DNS/WINS configuration, route table manipulation and browser cache clearing on disconnect. All network configuration is pushed from the VPN gateway.
 
@@ -83,7 +83,7 @@ The service handles VPN tunnel lifecycle: adapter creation, IP/DNS/WINS configur
 | Property         | Value                                      |
 |------------------|--------------------------------------------|
 | ImageBase        | `0x00400000`                               |
-| EntryPoint RVA   | `0x0029A5D4`                               |
+| EntryPoint RVA   | `0x00295708`                               |
 | Linker version   | 14.32 (MSVC 2022)                          |
 | Code signature   | DigiCert Trusted G4 RSA4096 SHA384 2021 CA1 |
 
@@ -113,16 +113,16 @@ The service imports multiple process-creation primitives from different DLLs.
 
 | Function             | IAT RVA      | Xrefs | DLL                          |
 |----------------------|-------------|-------|------------------------------|
-| `_popen`             | `0x006D6848` | 1 (*)  | `api-ms-win-crt-stdio-...`  |
-| `_pclose`            | `0x006D684C` | 1     | `api-ms-win-crt-stdio-...`  |
-| `system`             | `0x006D679C` | 1     | `api-ms-win-crt-runtime-...`|
+| `_popen`             | `0x006D6848` | 1 (*)  | `api-ms-win-crt-stdio-l1-1-0` |
+| `_pclose`            | `0x006D684C` | 1     | `api-ms-win-crt-stdio-l1-1-0` |
+| `system`             | `0x006D679C` | 1     | `api-ms-win-crt-runtime-l1-1-0` |
 | `CreateProcessA`     | `0x006D61F0` | 1     | `KERNEL32.dll`               |
 | `CreateProcessW`     | `0x006D624C` | 2     | `KERNEL32.dll`               |
 | `CreateProcessAsUserA` | `0x006D603C` | 1   | `ADVAPI32.dll`               |
 | `CreateProcessAsUserW` | `0x006D6044` | 1   | `ADVAPI32.dll`               |
 | `TerminateProcess`   | `0x006D6244` | 3     | `KERNEL32.dll`               |
 | `OpenProcessToken`   | `0x006D6040` | *     | `ADVAPI32.dll`               |
-| `DuplicateTokenEx`   | `0x006D60..` | *     | `ADVAPI32.dll`               |
+| `DuplicateTokenEx`   | `0x006D5F18` | *     | `ADVAPI32.dll`               |
 
 > (\*) The single `_popen` `CALL` instruction at `0x0006AF02` is reached from 14 distinct caller functions. See [Section 4.3](#43-call-graph-14-call-sites-across-7-functions).
 
@@ -146,29 +146,19 @@ A grep across the `.rdata` section yields the following format strings destined 
 
 Additional log strings corroborate runtime command construction:
 
-```
-"add IPV4 DNS by cmd:{}"
-"add IPV6 DNS by cmd:{}"
-"Dns clear {}"
-"Wins clear {}"
-"Get dev_guid = {}...dns_servers = {}"
-```
+| RVA          | Log String                               |
+|-------------|------------------------------------------|
+| `0x002E2EA4` | `add IPV4 DNS by cmd:{}`                 |
+| `0x002E2F94` | `add IPV6 DNS by cmd:{}`                 |
+| `0x002E489C` | `Dns clear {}`                           |
+| `0x002E48FC` | `Wins clear {}`                           |
+| `0x002E4FC0` | `dev_guid = {}...dns_servers = {}`        |
 
 The `{}` tokens are spdlog format placeholders. The actual `netsh` command populates the `{}` at log time, confirming the command is fully assembled before execution.
 
-For the browser cache clearing path, the binary contains:
+For the browser cache clearing path, the GUI client binary (`HillstoneSecureConnect.exe`) contains the strings `"wscript.exe"` and `"//nologo //B"` in UTF-16 encoding. These reference `clear_browser_cache.vbs`, distributed in the install directory alongside the service. The VBS terminates Chrome, IE, Safari, Sogou and 360 browser processes, then deletes their cache directories. The script header reads `' 2014 HillStone. All right reserved.`
 
-```
-"wscript.exe"
-"//nologo //B"
-".vbs"
-```
-
-These reference `clear_browser_cache.vbs`, which the service distributes in its install directory. The VBS terminates Chrome, IE, Safari, Sogou and 360 browser processes, then deletes their cache directories. The script itself bears the header:
-
-```
-' 2014 HillStone. All right reserved.
-```
+The GUI client binary also contains the static domain pattern `".hillstonenet.com"`, which the VPN client uses for gateway hostname resolution.
 
 ---
 
@@ -176,40 +166,34 @@ These reference `clear_browser_cache.vbs`, which the service distributes in its 
 
 ### 4.1 Function at RVA `0x0006AE90`
 
-This function is the sole wrapper around `_popen`/`_pclose`. It takes a command string (via `EDI`) and a mode constant (pushed as immediate `0x006E11BC`). The function prologue uses `__CxxFrameHandler4`-based SEH with a catch block at RVA `0x0069B336`.
+This function is the sole wrapper around `_popen`/`_pclose`. It takes a command string (via `EDI`) and a mode constant (pushed as immediate `0x006E11BC`). The function prologue uses a `__CxxFrameHandler4`-style SEH setup (the `PUSH -1; PUSH handler` pattern matches this exception handling mechanism, confirmed by the `.pdata`/`.xdata` exception directory entries). with a catch block at RVA `0x0069B336`.
 
-Reconstruction:
+Pseudo-code reconstruction:
 
 ```c
-FILE* hillstone_popen_exec(const char* command) {
-    FILE* pipe = NULL;
-    char* cmd = NULL;      // constructed by helper
-    char* cmd2 = NULL;
+char* command_buffer = NULL;       // written by build_cmd as side effect
 
-    __try {
-        cmd = build_command_string(eax_param);    // 0x00297065
-        cmd2 = build_command_string(esi_param);   // 0x00297065
+build_command_string(eax_param);   // first call (e.g. DNSv4 config)
+build_command_string(esi_param,    // second call (e.g. DNSv6 config)
+                     0,
+                     stack_param);
 
-        if (cmd == NULL || cmd2 == NULL) goto cleanup;
+if (command_buffer == NULL) {      // EDI check after both calls
+    return ERROR;
+}
 
-        pipe = _popen(cmd, "r");    // <-- INJECTION
+FILE* pipe = _popen(command_buffer, "r");    // <-- INJECTION
+if (pipe == NULL) goto cleanup;
 
-        if (pipe == NULL) goto cleanup;
-
-        // ... read pipe output, process ...
-
-    } __except(filter) {
-        // exception handler at 0x0069B336
-    }
+// ... read pipe output, process ...
 
 cleanup:
-    if (pipe) _pclose(pipe);    // RVA 0x0006B1D5
+    if (pipe) _pclose(pipe);
     free_resources();
     return result;
-}
 ```
 
-The helper function at RVA `0x00297065` takes a parameter in `EAX` or `ESI` and returns a heap-allocated command string. It performs `sprintf`-like assembly of the format templates from [Section 3.3](#33-string-extraction--command-templates) with runtime-supplied values (DNS server IP, adapter GUID, WINS address).
+`build_command_string()` at RVA `0x00297065` takes a format-string reference and variadic parameters via the stack. It calls `sprintf`-family functions internally, writes the assembled shell command into `EDI` and returns a boolean in `EAX`. The wrapper at `0x6AE90` calls it twice in succession: once for the IPv4 configuration path and once for IPv6. Both paths share a single output buffer. If either path produces a non-NULL result, the combined command proceeds to `_popen`. If both fail, the error path at `0x6B258` is taken.
 
 ### 4.2 Instruction-Level Trace
 
@@ -220,30 +204,32 @@ The helper function at RVA `0x00297065` takes a parameter in `EAX` or `ESI` and 
 0x6AE93: 6A FF            PUSH -1
 0x6AE95: 68 36B36900      PUSH 0x0069B336     ; catch block
 ...
-0x6AED0: 50               PUSH EAX            ; arg for build_cmd
-0x6AEDD: E8 83C12200      CALL 0x00297065     ; cmd = build_cmd(arg)
-0x6AEE3: 75 10            JNZ  +0x10          ; if ok, skip 2nd call
-0x6AEE5: 8B F0            MOV  ESI, EAX
-0x6AEE7: 56               PUSH ESI            ; arg for build_cmd
-0x6AEE8: E8 78C12200      CALL 0x00297065     ; cmd2 = build_cmd(arg)
-0x6AEED: 83 C4 18         ADD  ESP, 0x18      ; clean 6 args
-0x6AEF0: 85 FF            TEST EDI, EDI       ; cmd == NULL?
-0x6AEF2: 75 08            JNZ  +0x08          ; if not null, exec
-0x6AEF4: 8B 06            MOV  EAX, [ESI]
-...
-0x6AEF7: E9 5C030000      JMP  0x0006B258     ; error path
+0x6AED0: 50               PUSH EAX            ; arg1 for first build_cmd
+0x6AEDD: E8 83C12200      CALL 0x00297065     ; build_cmd(eax) -> stores cmd in EDI
+0x6AEE2: FF 75 10         PUSH [EBP+0x10]     ; arg2 for second build_cmd
+0x6AEE5: 6A 00            PUSH 0x00           ; arg3 = 0
+0x6AEE7: 56               PUSH ESI            ; arg4 for second build_cmd
+0x6AEE8: E8 78C12200      CALL 0x00297065     ; build_cmd(esi, 0, [ebp+0x10])
+0x6AEED: 83 C4 18         ADD  ESP, 0x18      ; clean 6 args (3 per call)
+0x6AEF0: 85 FF            TEST EDI, EDI       ; command_buffer == NULL?
+0x6AEF2: 75 08            JNZ  0x0006AEFC     ; if not null, proceed to _popen
+0x6AEF4: 83 C8 FF         OR   EAX, 0xFF      ; set error code
+0x6AEF7: E9 5C030000      JMP  0x0006B258     ; error/cleanup path
 ;--- Injection point ---
 0x6AEFC: 68 BC116E00      PUSH 0x006E11BC     ; mode = "r"
-0x6AF01: 57               PUSH EDI            ; command = cmd
-0x6AF02: FF 15 48686D00   CALL [_popen]       ; _popen(cmd, "r")
+0x6AF01: 57               PUSH EDI            ; command = command_buffer
+0x6AF02: FF 15 48686D00   CALL [_popen]       ; _popen(command_buffer, "r")
 0x6AF08: 8B F8            MOV  EDI, EAX       ; pipe = return
 0x6AF0A: 83 C4 08         ADD  ESP, 0x08      ; clean args
 0x6AF0D: 85 FF            TEST EDI, EDI       ; pipe == NULL?
-0x6AF0F: 75 08            JNZ  +0x08          ; if ok, read pipe
+0x6AF0F: 75 08            JNZ  0x0006AF19     ; if ok, read pipe output
 ...
 ;--- Cleanup ---
 0x6B1D5: FF 15 4C686D00   CALL [_pclose]      ; _pclose(pipe)
 ```
+
+> **Verified 2026-06-17:** Raw bytes at `0x6AEDD`: `E8 83 C1 22 00 FF 75 10 6A 00 56 E8 78 C1 22 00`.
+> The instruction at `0x6AEE2` is `PUSH [EBP+0x10]` (3 bytes: `FF 75 10`), not `JNZ`. Both `build_command_string` calls execute unconditionally with different parameter sets. The command buffer pointer is placed in `EDI` as a side effect of each call.
 
 The mode constant at VA `0x006E11BC` resides in `.rdata` at file offset `0x003213BC`. At runtime the pointer resolves to the narrow string `"r"`.
 
@@ -256,7 +242,7 @@ The wrapper function at RVA `0x0006AE90` receives 14 `CALL` instructions. These 
 | `0x00066C00`    | 4x         | `0x00074F50`, `0x0007FEE0`              |
 | `0x00067F30`    | 1x         | `0x00074F50`, `0x0007FEE0`              |
 | `0x00075850`    | 1x         | `0x00075AA0`                            |
-| `0x00076340`    | 3x         | vtable dispatch (no direct callers)     |
+| `0x00076340`    | 3x         | indirect calls only (vtable dispatch, no direct `CALL` instructions found) |
 | `0x000775B0`    | 2x         | `0x00078B80`                            |
 | `0x00078320`    | 2x         | `0x00078B80`                            |
 | `0x00079660`    | 1x         | `0x00076960`, `0x00078B80`, `0x00081590` |
@@ -287,7 +273,7 @@ Function `0x0006EFE0` (DNSv6 add) additionally references IAT entries for memory
 
 Function `0x00070B70` (DNSv4 add) similarly calls memory and I/O functions plus `ucrtbase!_fseeki64` (`0x006D681C`), indicating it performs file-position operations on the pipe returned by `_popen`.
 
-Function `0x000A1690` handles both `ipconfig /flushdns` and WINS operations. It references the log string `"Wins clear {}"` at RVA `0x002E47EC`, confirming its dual role in DNS cache flush and WINS server removal.
+Function `0x000A1690` handles both `ipconfig /flushdns` and WINS operations. It references the log string `"Wins clear {}"` at RVA `0x002E48FC`, confirming its dual role in DNS cache flush and WINS server removal.
 
 The remaining six format strings (IPv4/IPv6 set address, DNSv4/DNSv6 delete, WINS delete, `ipconfig` register+flush) are stored in a compiler-generated data structure. The functions that access them are identified indirectly through the bridge layer in [Section 4.5](#45-bridge-layer-format-strings-to-_popen).
 
@@ -325,11 +311,11 @@ Five top-level functions sit at the entry point of the command execution subsyst
 
 These functions receive configuration events from the network protocol handler. The SSL VPN subsystem uses a class hierarchy in the namespace `hillstonesecureconnect::sslvpn` with methods that process `NetEvent` objects:
 
-- `sslvpn::ProcessNetEvent()` — network event dispatcher
-- `sslvpn::Channel::start/stop` — tunnel channel lifecycle
-- `sslvpn::Session::handle_*` — session state management
+- `sslvpn::ProcessNetEvent()` - network event dispatcher
+- `sslvpn::Channel::start/stop` - tunnel channel lifecycle
+- `sslvpn::Session::handle_*` - session state management
 
-The registry path `SOFTWARE\Hillstone\Hillstone Secure Connect\DomainRoute\DnsSetting` and its sibling `RouteSetting` are the persistent storage for network configuration. The functions at `0x002E4B38`, `0x002E4CB0`, `0x002E4E78` and `0x002E50DC` read from `DomainRoute` keys and feed values into the command construction pipeline.
+The registry path `HKLM\SOFTWARE\WOW6432Node\Hillstone\Hillstone Secure Connect\DomainRoute\DnsSetting` and its sibling `RouteSetting` are the persistent storage for network configuration. String data at `0x002E4B38`, `0x002E4CB0`, `0x002E4E78` and `0x002E50DC` (in `.rdata` section - these are data pointers to registry path strings, not executable code) feed into the command construction pipeline.
 
 **Complete call chain from network event to shell execution:**
 
@@ -429,9 +415,11 @@ The adapter name derives from the virtual interface created by `hssvc.sys` or `w
 [Section 4.6](#46-upstream-callers-network-event-to-command-execution) establishes that the `DomainRoute` registry keys feed values into the command construction pipeline. The service reads from these keys under `HKLM`:
 
 ```
-SOFTWARE\Hillstone\Hillstone Secure Connect\DomainRoute\DnsSetting
-SOFTWARE\Hillstone\Hillstone Secure Connect\DomainRoute\RouteSetting
+HKLM\SOFTWARE\WOW6432Node\Hillstone\Hillstone Secure Connect\DomainRoute\DnsSetting
+HKLM\SOFTWARE\WOW6432Node\Hillstone\Hillstone Secure Connect\DomainRoute\RouteSetting
 ```
+
+Note: `WOW6432Node` appears because the 32-bit service binary on 64-bit Windows uses the registry redirector.
 
 A standard user cannot write to `HKLM`. Three bypass scenarios remain:
 
@@ -441,7 +429,7 @@ A standard user cannot write to `HKLM`. Three bypass scenarios remain:
 
 3. The adapter name parameter originates from the Wintun or TAP-Windows driver interface enumeration. A kernel-mode attacker who can rename the virtual adapter to contain shell metacharacters achieves injection without touching the registry.
 
-The functions at `0x002E4B38` and `0x002E50DC` handle reading from the `DomainRoute` keys. Cross-references to `"ProcessDNSIfProxy"` at RVAs `0x002E4F0D` through `0x002E508D` corroborate the DNS proxy configuration path. The log format string `"Get dev_guid = {}...dns_servers = {}"` at RVA `0x002E4FC0` confirms the adapter GUID and DNS server list are retrieved before command construction.
+Registry path string references at `0x002E4B38` and `0x002E50DC` (in `.rdata`) handle the `DomainRoute` configuration path. Cross-references to `"ProcessDNSIfProxy"` at RVAs `0x002E4F0D` through `0x002E508D` corroborate the DNS proxy configuration path. The log format string `"Get dev_guid = {}...dns_servers = {}"` at RVA `0x002E4FC0` confirms the adapter GUID and DNS server list are retrieved before command construction.
 
 ### 5.4 `system()` Red Herring
 
@@ -759,15 +747,15 @@ The command executes as `NT AUTHORITY\SYSTEM` (SID S-1-5-18) with `SeDebugPrivil
 ## 8. References
 
 1. [Hillstone Secure Connect product page](https://www.hillstonenet.com/products/hillstone-secure-connect/)
-2. [Wintun — Layer 3 TUN Driver for Windows](https://www.wintun.net/)
-3. [TAP-Windows — OpenVPN Technologies (GPLv2, archived)](https://github.com/OpenVPN/tap-windows6)
+2. [Wintun - Layer 3 TUN Driver for Windows](https://www.wintun.net/)
+3. [TAP-Windows - OpenVPN Technologies (GPLv2, archived)](https://github.com/OpenVPN/tap-windows6)
 4. [Microsoft CRT `_popen` documentation](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/popen-wpopen)
 5. [CWE-78: Improper Neutralization of Special Elements used in an OS Command](https://cwe.mitre.org/data/definitions/78.html)
 6. [Windows `cmd.exe` parsing rules](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
-7. [spdlog — Fast C++ logging library](https://github.com/gabime/spdlog)
+7. [spdlog - Fast C++ logging library](https://github.com/gabime/spdlog)
 
 ---
 
-> **CVSS v3.1: 9.8 Critical** — `AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H` (Gateway compromise scenario)
+> **CVSS v3.1: 9.8 Critical** - `AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H` (Gateway compromise scenario)
 >
 > **CWE-78:** Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')
