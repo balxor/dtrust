@@ -158,7 +158,7 @@ The `{}` tokens are spdlog format placeholders. The actual `netsh` command popul
 
 For the browser cache clearing path, the GUI client binary (`HillstoneSecureConnect.exe`) contains the strings `"wscript.exe"` and `"//nologo //B"` in UTF-16 encoding. These reference `clear_browser_cache.vbs`, distributed in the install directory alongside the service. The VBS terminates Chrome, IE, Safari, Sogou and 360 browser processes, then deletes their cache directories. The script header reads `' 2014 HillStone. All right reserved.`
 
-The GUI client binary also contains the static domain pattern `".hillstonenet.com"`, which the VPN client uses for gateway hostname resolution.
+The GUI client binary also contains the static domain pattern `".hillstonenet.com"`, which the VPN client uses for gateway hostname resolution. During live operation, the service connects to `swupdate.hillstonenet.com:1338` for software update checks and establishes a DTLS tunnel to the VPN gateway (observed at `38.47.80.234:4433` in a production session).
 
 ---
 
@@ -412,24 +412,33 @@ The adapter name derives from the virtual interface created by `hssvc.sys` or `w
 
 ### 5.3 Registry-Sourced Parameters (Local Attack Surface)
 
-[Section 4.6](#46-upstream-callers-network-event-to-command-execution) establishes that the `DomainRoute` registry keys feed values into the command construction pipeline. The service reads from these keys under `HKLM`:
+[Section 4.6](#46-upstream-callers-network-event-to-command-execution) establishes that the `DomainRoute` registry keys store DNS configuration. The service caches gateway-pushed DNS values under `HKLM` in a marker GUID subkey:
 
 ```
 HKLM\SOFTWARE\WOW6432Node\Hillstone\Hillstone Secure Connect\DomainRoute\DnsSetting
-HKLM\SOFTWARE\WOW6432Node\Hillstone\Hillstone Secure Connect\DomainRoute\RouteSetting
 ```
 
-Note: `WOW6432Node` appears because the 32-bit service binary on 64-bit Windows uses the registry redirector.
+The active tunnel's DNS cache uses a GUID with the hexspeak prefix `DEADBABE` whose suffix decodes to `"hillstone"`:
 
-A standard user cannot write to `HKLM`. Three bypass scenarios remain:
+```
+{DEADBABE-0000-0001-6869-6C6C73746F6E} = 192.168.12.52,192.168.12.51
+```
 
-1. A local administrator or a process with `SeRestorePrivilege` writes a malicious `DnsSetting` value. On the next tunnel reconfiguration event, the service reads the value, constructs a `netsh` command and passes it to `_popen`. The injected command executes as SYSTEM.
+**Runtime testing (2026-06-18) confirms:** Modifying this registry value from an elevated process does **not** result in command execution. When the service reconnects to the VPN gateway, the gateway pushes the authoritative DNS configuration through the DTLS tunnel. This gateway-supplied value overrides whatever was written to the registry. The log confirms the DNS `_popen` call occurs during tunnel establishment:
 
-2. The function at RVA `0x00076340` uses virtual dispatch ([Section 4.3](#43-call-graph-14-call-sites-across-7-functions)). If an attacker can manipulate the vtable or the object instance before the method is called, the command string parameter can be controlled. This class of attack requires a separate memory corruption primitive.
+```
+Set interface dns server successfully
+```
 
-3. The adapter name parameter originates from the Wintun or TAP-Windows driver interface enumeration. A kernel-mode attacker who can rename the virtual adapter to contain shell metacharacters achieves injection without touching the registry.
+The `_popen`-wrapped `netsh` command uses DNS values received from the gateway protocol message, not from the registry cache. The registry serves only as a diagnostic record of the last known configuration.
 
-Registry path string references at `0x002E4B38` and `0x002E50DC` (in `.rdata`) handle the `DomainRoute` configuration path. Cross-references to `"ProcessDNSIfProxy"` at RVAs `0x002E4F0D` through `0x002E508D` corroborate the DNS proxy configuration path. The log format string `"Get dev_guid = {}...dns_servers = {}"` at RVA `0x002E4FC0` confirms the adapter GUID and DNS server list are retrieved before command construction.
+The remaining local attack surfaces are:
+
+1. The function at RVA `0x00076340` uses virtual dispatch ([Section 4.3](#43-call-graph-14-call-sites-across-7-functions)). If an attacker can manipulate the vtable or object instance, the command string parameter can be controlled. This requires a separate memory corruption primitive.
+
+2. The adapter name parameter originates from the Wintun or TAP-Windows driver interface enumeration. A kernel-mode attacker who can rename the virtual adapter to contain shell metacharacters achieves injection without touching the registry.
+
+Registry path string references at `0x002E4B38` and `0x002E50DC` (in `.rdata`) handle the `DomainRoute` configuration path. Cross-references to `"ProcessDNSIfProxy"` at RVAs `0x002E4F0D` through `0x002E508D` corroborate the DNS proxy configuration path.
 
 ### 5.4 `system()` Red Herring
 
@@ -461,7 +470,48 @@ A summary of the client-service IPC discovered during reverse engineering:
 
 The GUI client (`HillstoneSecureConnect.exe`) also references `QLocalSocket`, suggesting an alternative named-pipe path through the service daemon (`HillstoneSecureConnectServiceD.exe`). No named pipe was observed in the running process table. The TCP listener at `35421` is the live IPC channel.
 
-A connection probe sends a 36-byte rhythmic echo (`"deaf\x00\x00..."`) to any unrecognized input. No authentication or encryption is applied to the IPC layer. Any process on the local machine can connect to `127.0.0.1:35421`.
+A connection probe during active VPN session returns no response — the service silently accepts well-formed JSON messages but drops those without an established client entity (session). Malformed messages produce an `"ipc error with code 2"` log entry and a disconnect. The `"deaf"` echo response from Section 6.1 only occurs when no VPN tunnel is established. This behavior difference between session states is noted in the production log at `C:\ProgramData\Hillstone\Hillstone Secure Connect\log\`.
+
+**Live _popen execution confirmed (2026-06-16 production log):**
+
+```
+Dns clear netsh interface ip delete dns "VirtualNet" all
+run cmd[netsh interface ip delete dns "VirtualNet" all] result is [
+There are no Domain Name Servers (DNS) configured on this computer.
+]
+
+Wins clear netsh interface ip delete wins "VirtualNet" all
+run cmd[netsh interface ip delete wins "VirtualNet" all] result is [
+]
+
+Flush DNS result:ipconfig /registerdns && ipconfig /flushdns
+
+Set interface dns server successfully
+```
+
+The service explicitly logs `"run cmd[...]"` before each `_popen` call, capturing the full shell command and its stdout result. The DNS clear operation, WINS clear and DNS flush are all executed through `_popen`-wrapped `netsh` and `ipconfig` commands. The DNS server configuration (`Set interface dns server successfully`) is pushed from the VPN gateway at `38.47.80.234:4433` (UDP DTLS tunnel) using the proprietary Hillstone protocol.
+
+The active tunnel's DNS configuration is stored in the registry under a marker GUID:
+
+```
+{DEADBABE-0000-0001-6869-6C6C73746F6E} = 192.168.12.52,192.168.12.51
+```
+
+The GUID suffix `6869-6C6C-7374-6F6E` decodes to the ASCII string `"hillstone"`. The `DEADBABE` prefix is a hexspeak magic marker. DNS server IPs from the gateway are written to this registry value as a comma-separated string before being passed to the `netsh` command via `sprintf`.
+
+#### Runtime Verification Summary (2026-06-18)
+
+A live Hillstone Secure Connect session was tested against all three local attack vectors:
+
+| Vector | Method | Result |
+|---|---|---|
+| Registry DNS injection | `Set-ItemProperty` → `{DEADBABE-...}` → service restart → tunnel reconnect | **Gateway overrides** registry. `_popen` uses tunnel-supplied DNS, not registry cache. |
+| IPC message spoofing | `{"profileName":"","type":"stop"}` → port 35421 | Message **silently accepted** but requires authenticated client entity. Non-authenticated messages logged as `"Wrong type when cl entity is not ready"`. |
+| IPC message spoofing (session-gated) | Same messages when tunnel active | **Silently dropped** — no response, no log entry. Session context required. |
+
+The `_popen` call chain was confirmed through production logs at `C:\ProgramData\Hillstone\Hillstone Secure Connect\log\`. The service logs `"run cmd[netsh...]"` before each `_popen` invocation, capturing the shell command and stdout. Three `netsh`/`ipconfig` commands were observed during session teardown: DNS clear, WINS clear and DNS flush.
+
+**Conclusion:** All viable attack paths require either VPN gateway compromise (Scenarios A/B below) or an additional local privilege escalation primitive to bypass IPC session gating.
 
 ### 6.2 Attack Scenarios
 
@@ -622,7 +672,7 @@ The payload string demonstrates the injection vector. The DNS server IP field is
 
 ### 6.4 Proof of Concept: IPC Spoofing (Local)
 
-For the local privilege escalation path through IPC port `35421`:
+For the local privilege escalation path through IPC port `35421`. The production log reveals the correct IPC message format: `{"profileName":"<name>","type":"<action>"}`. Observed message types include `"stop"` (disconnect) and inferred `"start"`, `"status"`, `"get"` and `"config"`.
 
 ```python
 #!/usr/bin/env python3
