@@ -1,4 +1,4 @@
-# Silabus: Format String Vulnerability - Debugging hingga Post-Exploitation
+# Format String Vulnerability - Debugging hingga Post-Exploitation
 **Author**: Kenshin Himura
 
 **Target audience**: Pentester, Security Researcher, Red Teamer  
