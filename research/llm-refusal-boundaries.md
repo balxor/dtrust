@@ -1,18 +1,20 @@
 # Systematic Measurement of Code-Generation Safeguards in Web-Deployed Large Language Models
 
-**Author**: Kenshin Himura, Security Researcher, DTrust.
+**Author**: Kenshin Himura
 
 ## Abstract
 
-Large Language Models deployed through web interfaces see increasing use for code generation. Published jailbreak studies focus on API endpoints, leaving the safety mechanisms of consumer-facing web products unmeasured. This paper presents a systematic measurement framework with three components: a taxonomy of 9 bypass strategies and 6 exploit categories, a 48-test evaluation matrix and a 5-class response classification system. We deploy this framework against Claude (Anthropic) via its web interface.  
+Large Language Models deployed through web interfaces see increasing use for code generation. Published jailbreak studies focus on API endpoints, leaving the safety mechanisms of consumer-facing web products unmeasured. This paper presents a systematic measurement framework with three components: a taxonomy of 9 bypass strategies and 6 exploit categories, a 48-test evaluation matrix and a 5-class response classification system. We deploy this framework against Claude (Anthropic) via its web interface.
 
-Results show 29% of exploit-generation prompts produced functional code, with highly asymmetric protection: network exploits and malware blocked at 100%, cryptographic attack tools and reconnaissance utilities bypassing safeguards at 75-88% success rates. We map these findings to MITRE ATLAS, proposing three new techniques (AML.P0100-AML.P0102) to address identified coverage gaps. The gap between published predictions (65% bypass) and real web outcomes (29% bypass) demonstrates that web-deployed LLMs exhibit differential vulnerability patterns, with implications for AI security measurement and threat modeling.
+Results show 29% of exploit-generation prompts produced functional code, with highly asymmetric protection: network exploits and malware blocked at 100%, cryptographic attack tools and reconnaissance utilities bypassing safeguards at 75-88% success rates. We map these findings to MITRE ATLAS, proposing three new techniques (AML.P0100-AML.P0102) to address identified coverage gaps.
+
+The gap between published predictions (65% bypass) and real web outcomes (29% bypass) demonstrates that web-deployed LLMs exhibit differential vulnerability patterns, with implications for AI security measurement and threat modeling.
 
 **Keywords**: LLM safety, jailbreak, prompt injection, refusal boundaries, MITRE ATLAS, AI security measurement
 
 ## 1. Introduction
 
-LLMs have become standard coding assistants. Platforms such as GitHub Copilot, Cursor and Claude Code integrate LLMs directly into development workflows. Millions of users interact with web interfaces at claude.ai and chatgpt.com for code generation tasks daily [1, 2]. These systems undergo extensive safety training designed to prevent generation of malicious code and exploits [3, 4].
+LLMs have become standard coding assistants. Platforms such as GitHub Copilot, Cursor and Claude Code integrate LLMs directly into development workflows. Millions of users interact with web interfaces at claude.ai and chatgpt.com for code generation tasks daily. These systems undergo extensive safety training designed to prevent generation of malicious code and exploits (Bai et al., 2022; Anthropic, 2025).
 
 Published research demonstrates that LLM safety guardrails can be circumvented through crafted prompts - a class of attacks labeled prompt injection or jailbreaking [5, 6, 7, 8]. Role-playing and chain-of-thought exploitation induce LLMs to violate content policies. The majority of this research targets API endpoints, which may employ safety mechanisms distinct from the consumer-facing web interfaces used by millions of daily users.
 
@@ -32,23 +34,23 @@ This gap raises two questions: **How effective are web-deployed LLM safeguards a
 
 ### 2.1 LLM Safety Training
 
-Modern LLMs undergo multi-stage safety training: supervised fine-tuning on curated refusal datasets, reinforcement learning from human feedback (RLHF) and constitutional AI techniques that encode behavioral constraints [3, 9]. The objective is producing models that refuse harmful requests while remaining helpful. The tension between helpfulness and harmlessness creates a trade-off that adversaries can exploit [10].
+Modern LLMs undergo multi-stage safety training: supervised fine-tuning on curated refusal datasets, reinforcement learning from human feedback (RLHF) and constitutional AI techniques that encode behavioral constraints (Bai et al., 2022; Ouyang et al., 2022). The objective is producing models that refuse harmful requests while remaining helpful. The tension between helpfulness and harmlessness creates a trade-off that adversaries can exploit (Askell et al., 2021).
 
 ### 2.2 Prompt Injection and Jailbreaking
 
-Wei et al. [5] provided a foundational taxonomy of jailbreak failure modes, showing safety training can be systematically bypassed through competing objectives and mismatched generalization. Zou et al. [7] showed universal adversarial suffixes transfer across models. Liu et al. [6] cataloged injection techniques specific to LLM-integrated applications.
+Wei et al. (2024) provided a foundational taxonomy of jailbreak failure modes, showing safety training can be systematically bypassed through competing objectives and mismatched generalization. Zou et al. (2023) showed universal adversarial suffixes transfer across models. Liu et al. (2023) cataloged injection techniques specific to LLM-integrated applications.
 
-Recent work focused on code-generation safeguards. Greshake et al. [11] demonstrated indirect prompt injection in coding assistants. Schulhoff et al. [8] organized a large-scale red-teaming competition revealing persistent vulnerabilities in instruction-hierarchy enforcement.
+Recent work focused on code-generation safeguards. Greshake et al. (2023) demonstrated indirect prompt injection in coding assistants. Schulhoff et al. (2024) organized a large-scale red-teaming competition revealing persistent vulnerabilities in instruction-hierarchy enforcement.
 
 These studies share a limitation: they target API endpoints (GPT-4 API, Claude API), which may employ different safety filtering than web interfaces used by consumer and enterprise users.
 
 ### 2.3 MITRE ATLAS
 
-MITRE ATLAS (Adversarial Threat Landscape for AI Systems) [12] extends the ATT&CK framework to the AI domain. As of version 2026.05, ATLAS defines 16 tactics and over 100 techniques covering adversarial ML, LLM attacks and AI supply chain compromise. AML.T0051 (LLM Prompt Injection) covers crafted prompts to manipulate LLM behavior, but does not distinguish between simple injection and systematic multi-strategy bypass campaigns. AML.T0005 (Execution) covers malicious code execution but not the pathway of LLM-synthesized exploit code.
+MITRE ATLAS (Adversarial Threat Landscape for AI Systems) extends the ATT&CK framework to the AI domain (MITRE, 2026). As of version 2026.05, ATLAS defines 16 tactics and over 100 techniques covering adversarial ML, LLM attacks and AI supply chain compromise. AML.T0051 (LLM Prompt Injection) covers crafted prompts to manipulate LLM behavior, but does not distinguish between simple injection and systematic multi-strategy bypass campaigns. AML.T0005 (Execution) covers malicious code execution but not the pathway of LLM-synthesized exploit code.
 
 ### 2.4 Measurement Studies in AI Security
 
-Large-scale measurement studies are standard in security research [13, 14]. In AI security, recent work has measured model extraction attacks [15], data leakage [16] and adversarial robustness [17]. No prior work has conducted systematic measurement of refusal boundary degradation across a structured exploit-by-strategy matrix against web-deployed LLMs.
+Large-scale measurement studies are standard in security research (Durumeric et al., 2013). In AI security, recent work has measured model extraction attacks (Tramer et al., 2016), training data leakage (Carlini et al., 2021) and adversarial robustness (Carlini and Wagner, 2017). No prior work has conducted systematic measurement of refusal boundary degradation across a structured exploit-by-strategy matrix against web-deployed LLMs.
 
 ## 3. Threat Model
 
